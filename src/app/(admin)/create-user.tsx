@@ -1,24 +1,24 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-  checkAvailability,
-  createUser,
-  fetchDescendantRoles,
-  RoleItem,
+    checkAvailability,
+    createUser,
+    fetchDescendantRoles,
+    RoleItem,
 } from "../../api/users";
 import { colors } from "../../theme/colors";
 
@@ -43,7 +43,9 @@ export default function AdminCreateUserScreen() {
 
   // Live Mobile Verification State
   const [checkingMobile, setCheckingMobile] = useState(false);
-  const [mobileStatus, setMobileStatus] = useState<"idle" | "available" | "taken">("idle");
+  const [mobileStatus, setMobileStatus] = useState<
+    "idle" | "available" | "taken"
+  >("idle");
   const [mobileMessage, setMobileMessage] = useState("");
 
   const [busy, setBusy] = useState(false);
@@ -81,7 +83,9 @@ export default function AdminCreateUserScreen() {
           setMobileMessage("Mobile number verified & available");
         } else {
           setMobileStatus("taken");
-          setMobileMessage(res.message || "This mobile number is already registered.");
+          setMobileMessage(
+            res.message || "This mobile number is already registered.",
+          );
         }
       } catch {
         setMobileStatus("idle");
@@ -184,7 +188,9 @@ export default function AdminCreateUserScreen() {
           </TouchableOpacity>
           <View style={styles.headerTitleWrap}>
             <Text style={styles.headerTitle}>Create New User</Text>
-            <Text style={styles.headerSubtitle}>Assign role & merchant profile</Text>
+            <Text style={styles.headerSubtitle}>
+              Assign role & merchant profile
+            </Text>
           </View>
         </View>
 
@@ -203,7 +209,10 @@ export default function AdminCreateUserScreen() {
           {/* Role Picker Section */}
           <Text style={styles.sectionLabel}>Select Role *</Text>
           {loadingRoles ? (
-            <ActivityIndicator color={colors.blue} style={{ marginVertical: 10 }} />
+            <ActivityIndicator
+              color={colors.blue}
+              style={{ marginVertical: 10 }}
+            />
           ) : (
             <View style={styles.roleGrid}>
               {roles.map((r) => {
@@ -248,7 +257,12 @@ export default function AdminCreateUserScreen() {
               mobileStatus === "taken" && styles.inputError,
             ]}
           >
-            <Ionicons name="call-outline" size={20} color={colors.muted} style={styles.inputIcon} />
+            <Ionicons
+              name="call-outline"
+              size={20}
+              color={colors.muted}
+              style={styles.inputIcon}
+            />
             <TextInput
               style={styles.input}
               placeholder="10-digit mobile number"
@@ -284,7 +298,12 @@ export default function AdminCreateUserScreen() {
 
           <Text style={styles.inputLabel}>Full Name *</Text>
           <View style={styles.inputContainer}>
-            <Ionicons name="person-outline" size={20} color={colors.muted} style={styles.inputIcon} />
+            <Ionicons
+              name="person-outline"
+              size={20}
+              color={colors.muted}
+              style={styles.inputIcon}
+            />
             <TextInput
               style={styles.input}
               placeholder="e.g. Rahul Sharma"
@@ -296,7 +315,12 @@ export default function AdminCreateUserScreen() {
 
           <Text style={styles.inputLabel}>Email Address *</Text>
           <View style={styles.inputContainer}>
-            <Ionicons name="mail-outline" size={20} color={colors.muted} style={styles.inputIcon} />
+            <Ionicons
+              name="mail-outline"
+              size={20}
+              color={colors.muted}
+              style={styles.inputIcon}
+            />
             <TextInput
               style={styles.input}
               placeholder="e.g. rahul@example.com"
@@ -309,13 +333,25 @@ export default function AdminCreateUserScreen() {
           </View>
 
           <Text style={styles.inputLabel}>
-            Custom Password <Text style={styles.optionalText}>(Optional - Defaults to Mobile)</Text>
+            Custom Password{" "}
+            <Text style={styles.optionalText}>
+              (Optional - Defaults to Mobile)
+            </Text>
           </Text>
           <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed-outline" size={20} color={colors.muted} style={styles.inputIcon} />
+            <Ionicons
+              name="lock-closed-outline"
+              size={20}
+              color={colors.muted}
+              style={styles.inputIcon}
+            />
             <TextInput
               style={styles.input}
-              placeholder={mobile ? `Default: ${mobile}` : "Leave blank to use mobile number"}
+              placeholder={
+                mobile
+                  ? `Default: ${mobile}`
+                  : "Leave blank to use mobile number"
+              }
               placeholderTextColor={colors.muted}
               value={password}
               onChangeText={setPassword}
@@ -333,15 +369,23 @@ export default function AdminCreateUserScreen() {
             </TouchableOpacity>
           </View>
           <Text style={styles.helperText}>
-            If left blank, the verified 10-digit mobile number is automatically set as the initial password.
+            If left blank, the verified 10-digit mobile number is automatically
+            set as the initial password.
           </Text>
 
           {/* Business & Address Details */}
-          <Text style={[styles.sectionLabel, { marginTop: 24 }]}>Shop / Business Details (Optional)</Text>
+          <Text style={[styles.sectionLabel, { marginTop: 24 }]}>
+            Shop / Business Details (Optional)
+          </Text>
 
           <Text style={styles.inputLabel}>Shop or Enterprise Name</Text>
           <View style={styles.inputContainer}>
-            <Ionicons name="storefront-outline" size={20} color={colors.muted} style={styles.inputIcon} />
+            <Ionicons
+              name="storefront-outline"
+              size={20}
+              color={colors.muted}
+              style={styles.inputIcon}
+            />
             <TextInput
               style={styles.input}
               placeholder="e.g. Sharma Telecom"
@@ -353,7 +397,12 @@ export default function AdminCreateUserScreen() {
 
           <Text style={styles.inputLabel}>Address</Text>
           <View style={styles.inputContainer}>
-            <Ionicons name="location-outline" size={20} color={colors.muted} style={styles.inputIcon} />
+            <Ionicons
+              name="location-outline"
+              size={20}
+              color={colors.muted}
+              style={styles.inputIcon}
+            />
             <TextInput
               style={styles.input}
               placeholder="Shop / Building, Street"
@@ -392,7 +441,12 @@ export default function AdminCreateUserScreen() {
 
           <Text style={styles.inputLabel}>Pincode</Text>
           <View style={styles.inputContainer}>
-            <Ionicons name="navigate-outline" size={20} color={colors.muted} style={styles.inputIcon} />
+            <Ionicons
+              name="navigate-outline"
+              size={20}
+              color={colors.muted}
+              style={styles.inputIcon}
+            />
             <TextInput
               style={styles.input}
               placeholder="6-digit PIN"

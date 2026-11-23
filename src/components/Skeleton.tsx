@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Animated,
   DimensionValue,
@@ -65,9 +65,19 @@ export function UserCardSkeleton() {
     <View style={styles.cardContainer}>
       {/* Header Row */}
       <View style={styles.headerRow}>
-        <Skeleton width={44} height={44} borderRadius={22} style={styles.avatar} />
+        <Skeleton
+          width={44}
+          height={44}
+          borderRadius={22}
+          style={styles.avatar}
+        />
         <View style={styles.infoCol}>
-          <Skeleton width="55%" height={16} borderRadius={6} style={{ marginBottom: 6 }} />
+          <Skeleton
+            width="55%"
+            height={16}
+            borderRadius={6}
+            style={{ marginBottom: 6 }}
+          />
           <Skeleton width="75%" height={12} borderRadius={4} />
         </View>
         <Skeleton width={56} height={22} borderRadius={8} />

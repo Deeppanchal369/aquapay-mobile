@@ -1,15 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import {
-  Alert,
-  FlatList,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    Alert,
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { fetchUsers, UserItem } from "../../api/users";
@@ -30,7 +30,12 @@ export default function SubordinateUsersScreen() {
       const userList = await fetchUsers({ search: search.trim() || undefined });
       setUsers(userList);
     } catch (err: any) {
-      Alert.alert("Error", err?.response?.data?.message || err?.message || "Failed to load team members");
+      Alert.alert(
+        "Error",
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to load team members",
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -61,7 +66,9 @@ export default function SubordinateUsersScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleWrap}>
           <Text style={styles.headerTitle}>My Network Users</Text>
-          <Text style={styles.headerSubtitle}>Members created by your account</Text>
+          <Text style={styles.headerSubtitle}>
+            Members created by your account
+          </Text>
         </View>
         <TouchableOpacity
           onPress={() => router.push("/(user)/add-member" as any)}
@@ -99,7 +106,9 @@ export default function SubordinateUsersScreen() {
         <FlatList
           data={users}
           keyExtractor={(item) => String(item.id)}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
@@ -118,7 +127,9 @@ export default function SubordinateUsersScreen() {
               <View style={styles.userCard}>
                 <View style={styles.cardHeader}>
                   <View style={styles.userAvatar}>
-                    <Text style={styles.avatarLetter}>{item.name?.charAt(0)?.toUpperCase() || "U"}</Text>
+                    <Text style={styles.avatarLetter}>
+                      {item.name?.charAt(0)?.toUpperCase() || "U"}
+                    </Text>
                   </View>
                   <View style={styles.userInfo}>
                     <Text style={styles.userName}>{item.name}</Text>
@@ -129,13 +140,19 @@ export default function SubordinateUsersScreen() {
                   <View
                     style={[
                       styles.statusBadge,
-                      { backgroundColor: item.status === "active" ? "#DCFCE7" : "#FEE2E2" },
+                      {
+                        backgroundColor:
+                          item.status === "active" ? "#DCFCE7" : "#FEE2E2",
+                      },
                     ]}
                   >
                     <Text
                       style={[
                         styles.statusBadgeText,
-                        { color: item.status === "active" ? "#15803D" : "#B91C1C" },
+                        {
+                          color:
+                            item.status === "active" ? "#15803D" : "#B91C1C",
+                        },
                       ]}
                     >
                       {item.status.toUpperCase()}
@@ -148,7 +165,9 @@ export default function SubordinateUsersScreen() {
                   <View style={styles.roleBadge}>
                     <Text style={styles.roleBadgeText}>{item.role_name}</Text>
                   </View>
-                  {item.shopname ? <Text style={styles.detailText}>Shop: {item.shopname}</Text> : null}
+                  {item.shopname ? (
+                    <Text style={styles.detailText}>Shop: {item.shopname}</Text>
+                  ) : null}
                 </View>
 
                 {/* KYC & Date Footer */}
@@ -160,11 +179,17 @@ export default function SubordinateUsersScreen() {
                       color={isApproved ? "#16A34A" : colors.muted}
                     />
                     <Text style={styles.kycTagText}>
-                      KYC: {item.kyc?.status ? item.kyc.status.toUpperCase() : "PENDING"}
+                      KYC:{" "}
+                      {item.kyc?.status
+                        ? item.kyc.status.toUpperCase()
+                        : "PENDING"}
                     </Text>
                   </View>
                   <Text style={styles.dateText}>
-                    Joined {item.created_at ? new Date(item.created_at).toLocaleDateString() : ""}
+                    Joined{" "}
+                    {item.created_at
+                      ? new Date(item.created_at).toLocaleDateString()
+                      : ""}
                   </Text>
                 </View>
               </View>
