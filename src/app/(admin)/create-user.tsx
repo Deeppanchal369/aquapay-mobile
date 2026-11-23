@@ -1,24 +1,24 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
-    checkAvailability,
-    createUser,
-    fetchDescendantRoles,
-    RoleItem,
+  checkAvailability,
+  createUser,
+  fetchDescendantRoles,
+  RoleItem,
 } from "../../api/users";
 import { colors } from "../../theme/colors";
 
@@ -74,21 +74,33 @@ export default function AdminCreateUserScreen() {
     setMobile(cleaned);
     setErrorMessage("");
 
+    // If mobile number changed, reset password to locked state
+    setPassword("");
+
     if (cleaned.length === 10) {
+      if (!/^[6-9]\d{9}$/.test(cleaned)) {
+        setMobileStatus("taken");
+        setMobileMessage("Indian mobile numbers must start with 6, 7, 8, or 9.");
+        return;
+      }
+
       try {
         setCheckingMobile(true);
         const res = await checkAvailability({ mobile: cleaned });
         if (res.available) {
           setMobileStatus("available");
           setMobileMessage("Mobile number verified & available");
+          // Automatically pre-fill password with the verified mobile number
+          setPassword(cleaned);
         } else {
           setMobileStatus("taken");
           setMobileMessage(
-            res.message || "This mobile number is already registered.",
+            res.message || "This mobile number is already registered in AquaPay.",
           );
         }
       } catch {
         setMobileStatus("idle");
+        setMobileMessage("");
       } finally {
         setCheckingMobile(false);
       }
@@ -102,32 +114,58 @@ export default function AdminCreateUserScreen() {
     setErrorMessage("");
 
     if (!selectedRoleId) {
-      setErrorMessage("Please select a role");
-      return;
-    }
-    if (!name.trim()) {
-      setErrorMessage("Please enter full name");
-      return;
-    }
-    if (!email.trim() || !email.includes("@")) {
-      setErrorMessage("Please enter a valid email address");
-      return;
-    }
-    const cleanMobile = mobile.trim();
-    if (!cleanMobile || cleanMobile.length < 10) {
-      setErrorMessage("Please enter a valid 10-digit mobile number");
+      setErrorMessage("Please select a user role.");
       return;
     }
 
-    if (mobileStatus === "taken") {
-      setErrorMessage("Please use an unregistered mobile number.");
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setErrorMessage("Please enter full name.");
+      return;
+    }
+    if (trimmedName.length < 2 || trimmedName.length > 100) {
+      setErrorMessage("Full name must be between 2 and 100 characters.");
+      return;
+    }
+    if (!/^[a-zA-Z\s]+$/.test(trimmedName)) {
+      setErrorMessage("Full name must contain only alphabetic letters and spaces.");
+      return;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setErrorMessage("Please enter a valid email address.");
+      return;
+    }
+
+    const cleanMobile = mobile.trim();
+    if (!cleanMobile || cleanMobile.length < 10) {
+      setErrorMessage("Please enter a complete 10-digit mobile number.");
+      return;
+    }
+
+    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
+      setErrorMessage("Mobile number must start with 6, 7, 8, or 9.");
+      return;
+    }
+
+    if (mobileStatus !== "available") {
+      setErrorMessage(
+        "Please enter an available, unregistered mobile number to continue.",
+      );
       return;
     }
 
     // Default password to verified mobile number if left empty by admin
     const effectivePassword = password.trim() ? password.trim() : cleanMobile;
     if (effectivePassword.length < 8) {
-      setErrorMessage("Password must be at least 8 characters");
+      setErrorMessage("Password must be at least 8 characters long.");
+      return;
+    }
+
+    const cleanPincode = pincode.trim();
+    if (cleanPincode && !/^[1-9][0-9]{5}$/.test(cleanPincode)) {
+      setErrorMessage("Pincode must be a valid 6-digit postal code (e.g. 400001).");
       return;
     }
 
@@ -135,24 +173,25 @@ export default function AdminCreateUserScreen() {
       setBusy(true);
       await createUser({
         roleId: selectedRoleId,
-        name: name.trim(),
-        email: email.trim().toLowerCase(),
+        name: trimmedName,
+        email: cleanEmail,
         mobile: cleanMobile,
         password: effectivePassword,
         shopname: shopname.trim() || undefined,
         address: address.trim() || undefined,
         state: state.trim() || undefined,
         city: city.trim() || undefined,
-        pincode: pincode.trim() || undefined,
+        pincode: cleanPincode || undefined,
       });
 
-      const passNote = password.trim()
-        ? "Custom password configured."
-        : `Default password set to mobile number (${cleanMobile}).`;
+      const passNote =
+        effectivePassword === cleanMobile
+          ? `Initial password is automatically set to mobile number (${cleanMobile}).`
+          : "Custom password configured.";
 
       Alert.alert(
         "User Created Successfully",
-        `New account for ${name.trim()} has been created. ${passNote}`,
+        `New account for ${trimmedName} has been created.\n\n${passNote}`,
         [
           {
             text: "OK",
@@ -170,6 +209,8 @@ export default function AdminCreateUserScreen() {
       setBusy(false);
     }
   };
+
+  const isPasswordUnlocked = mobileStatus === "available";
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -246,9 +287,10 @@ export default function AdminCreateUserScreen() {
             </View>
           )}
 
-          {/* Basic Details */}
+          {/* Account Credentials */}
           <Text style={styles.sectionLabel}>Account Credentials</Text>
 
+          {/* Mobile Number Input with Live Verification */}
           <Text style={styles.inputLabel}>Mobile Number *</Text>
           <View
             style={[
@@ -265,12 +307,13 @@ export default function AdminCreateUserScreen() {
             />
             <TextInput
               style={styles.input}
-              placeholder="10-digit mobile number"
+              placeholder="10-digit mobile (e.g. 9876543210)"
               placeholderTextColor={colors.muted}
               value={mobile}
               onChangeText={handleMobileChange}
               keyboardType="phone-pad"
               maxLength={10}
+              editable={!busy}
             />
             {checkingMobile ? (
               <ActivityIndicator size="small" color={colors.blue} />
@@ -286,7 +329,7 @@ export default function AdminCreateUserScreen() {
             <View style={styles.feedbackRow}>
               <Ionicons name="shield-checkmark" size={14} color="#16A34A" />
               <Text style={styles.feedbackSuccessText}>
-                Mobile verified & available. Default password: {mobile}
+                Mobile verified & available. Password unlocked & auto-filled with: {mobile}
               </Text>
             </View>
           ) : mobileStatus === "taken" ? (
@@ -294,8 +337,78 @@ export default function AdminCreateUserScreen() {
               <Ionicons name="alert-circle" size={14} color={colors.error} />
               <Text style={styles.feedbackErrorText}>{mobileMessage}</Text>
             </View>
-          ) : null}
+          ) : (
+            <Text style={styles.helperText}>
+              Step 1: Enter 10-digit mobile number to verify availability before password setup.
+            </Text>
+          )}
 
+          {/* Password Input: Only Unlocked Once Mobile is Verified */}
+          <View style={styles.passwordLabelRow}>
+            <Text style={styles.inputLabel}>
+              Initial Password *{" "}
+              {isPasswordUnlocked ? (
+                <Text style={styles.optionalText}>(Defaults to Mobile)</Text>
+              ) : null}
+            </Text>
+            {!isPasswordUnlocked ? (
+              <View style={styles.lockBadge}>
+                <Ionicons name="lock-closed" size={12} color={colors.muted} />
+                <Text style={styles.lockBadgeText}>Locked</Text>
+              </View>
+            ) : (
+              <View style={[styles.lockBadge, styles.unlockedBadge]}>
+                <Ionicons name="lock-open" size={12} color="#15803D" />
+                <Text style={styles.unlockedBadgeText}>Unlocked</Text>
+              </View>
+            )}
+          </View>
+
+          <View
+            style={[
+              styles.inputContainer,
+              !isPasswordUnlocked && styles.inputDisabled,
+            ]}
+          >
+            <Ionicons
+              name={isPasswordUnlocked ? "lock-open-outline" : "lock-closed-outline"}
+              size={20}
+              color={isPasswordUnlocked ? colors.blue : colors.muted}
+              style={styles.inputIcon}
+            />
+            <TextInput
+              style={[styles.input, !isPasswordUnlocked && styles.inputTextDisabled]}
+              placeholder={
+                isPasswordUnlocked
+                  ? `Default: ${mobile}`
+                  : "Verify mobile number above first"
+              }
+              placeholderTextColor={colors.muted}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              editable={isPasswordUnlocked && !busy}
+            />
+            {isPasswordUnlocked ? (
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={styles.eyeBtn}
+              >
+                <Ionicons
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  size={20}
+                  color={colors.muted}
+                />
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          <Text style={styles.helperText}>
+            {!isPasswordUnlocked
+              ? "Password field remains safely locked until an unregistered mobile number is verified."
+              : `Default password is pre-filled with ${mobile}. As Admin, you may keep it or enter a custom password (min 8 chars).`}
+          </Text>
+
+          {/* Full Name */}
           <Text style={styles.inputLabel}>Full Name *</Text>
           <View style={styles.inputContainer}>
             <Ionicons
@@ -306,13 +419,15 @@ export default function AdminCreateUserScreen() {
             />
             <TextInput
               style={styles.input}
-              placeholder="e.g. Rahul Sharma"
+              placeholder="e.g. Rahul Sharma (letters only)"
               placeholderTextColor={colors.muted}
               value={name}
               onChangeText={setName}
+              editable={!busy}
             />
           </View>
 
+          {/* Email Address */}
           <Text style={styles.inputLabel}>Email Address *</Text>
           <View style={styles.inputContainer}>
             <Ionicons
@@ -329,49 +444,9 @@ export default function AdminCreateUserScreen() {
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
+              editable={!busy}
             />
           </View>
-
-          <Text style={styles.inputLabel}>
-            Custom Password{" "}
-            <Text style={styles.optionalText}>
-              (Optional - Defaults to Mobile)
-            </Text>
-          </Text>
-          <View style={styles.inputContainer}>
-            <Ionicons
-              name="lock-closed-outline"
-              size={20}
-              color={colors.muted}
-              style={styles.inputIcon}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder={
-                mobile
-                  ? `Default: ${mobile}`
-                  : "Leave blank to use mobile number"
-              }
-              placeholderTextColor={colors.muted}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-            />
-            <TouchableOpacity
-              onPress={() => setShowPassword(!showPassword)}
-              style={styles.eyeBtn}
-            >
-              <Ionicons
-                name={showPassword ? "eye-off-outline" : "eye-outline"}
-                size={20}
-                color={colors.muted}
-              />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.helperText}>
-            If left blank, the verified 10-digit mobile number is automatically
-            set as the initial password.
-          </Text>
 
           {/* Business & Address Details */}
           <Text style={[styles.sectionLabel, { marginTop: 24 }]}>
@@ -392,6 +467,7 @@ export default function AdminCreateUserScreen() {
               placeholderTextColor={colors.muted}
               value={shopname}
               onChangeText={setShopname}
+              editable={!busy}
             />
           </View>
 
@@ -409,6 +485,7 @@ export default function AdminCreateUserScreen() {
               placeholderTextColor={colors.muted}
               value={address}
               onChangeText={setAddress}
+              editable={!busy}
             />
           </View>
 
@@ -422,6 +499,7 @@ export default function AdminCreateUserScreen() {
                   placeholderTextColor={colors.muted}
                   value={city}
                   onChangeText={setCity}
+                  editable={!busy}
                 />
               </View>
             </View>
@@ -434,6 +512,7 @@ export default function AdminCreateUserScreen() {
                   placeholderTextColor={colors.muted}
                   value={state}
                   onChangeText={setState}
+                  editable={!busy}
                 />
               </View>
             </View>
@@ -449,12 +528,13 @@ export default function AdminCreateUserScreen() {
             />
             <TextInput
               style={styles.input}
-              placeholder="6-digit PIN"
+              placeholder="6-digit postal PIN"
               placeholderTextColor={colors.muted}
               value={pincode}
-              onChangeText={setPincode}
+              onChangeText={(text) => setPincode(text.replace(/[^0-9]/g, "").slice(0, 6))}
               keyboardType="number-pad"
               maxLength={6}
+              editable={!busy}
             />
           </View>
 
@@ -462,11 +542,11 @@ export default function AdminCreateUserScreen() {
           <TouchableOpacity
             style={[
               styles.submitButton,
-              (busy || mobileStatus === "taken") && styles.submitButtonDisabled,
+              (!isPasswordUnlocked || busy) && styles.submitButtonDisabled,
             ]}
             onPress={handleSubmit}
-            disabled={busy || mobileStatus === "taken"}
-            activeOpacity={0.8}
+            disabled={!isPasswordUnlocked || busy}
+            activeOpacity={0.85}
           >
             {busy ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
@@ -492,7 +572,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 18,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
@@ -500,8 +580,7 @@ const styles = StyleSheet.create({
     padding: 6,
   },
   headerTitleWrap: {
-    flex: 1,
-    marginLeft: 10,
+    marginLeft: 12,
   },
   headerTitle: {
     fontSize: 18,
@@ -513,8 +592,8 @@ const styles = StyleSheet.create({
     color: colors.muted,
   },
   scrollContent: {
-    paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
     paddingBottom: 40,
   },
   errorAlert: {
@@ -539,7 +618,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     color: colors.navy,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   roleGrid: {
     flexDirection: "row",
@@ -550,12 +629,12 @@ const styles = StyleSheet.create({
   roleOption: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
+    backgroundColor: colors.lightBlue,
     borderWidth: 1,
     borderColor: colors.border,
-    backgroundColor: colors.lightBlue,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     gap: 8,
   },
   roleOptionActive: {
@@ -570,17 +649,46 @@ const styles = StyleSheet.create({
   roleOptionTextActive: {
     color: "#FFFFFF",
   },
+  passwordLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  lockBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    gap: 4,
+  },
+  lockBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.muted,
+  },
+  unlockedBadge: {
+    backgroundColor: "#DCFCE7",
+  },
+  unlockedBadgeText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#15803D",
+  },
   inputLabel: {
     fontSize: 13,
     fontWeight: "600",
     color: colors.text,
+    marginTop: 12,
     marginBottom: 6,
-    marginTop: 10,
   },
   optionalText: {
-    fontSize: 12,
-    fontWeight: "400",
+    fontSize: 11,
     color: colors.muted,
+    fontWeight: "400",
   },
   inputContainer: {
     flexDirection: "row",
@@ -588,9 +696,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.lightBlue,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 14,
-    height: 50,
-    paddingHorizontal: 14,
+    borderRadius: 12,
+    height: 48,
+    paddingHorizontal: 12,
+  },
+  inputDisabled: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#E2E8F0",
+  },
+  inputTextDisabled: {
+    color: colors.muted,
   },
   inputSuccess: {
     borderColor: "#16A34A",
@@ -605,11 +720,8 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     color: colors.text,
-  },
-  eyeBtn: {
-    padding: 6,
   },
   feedbackRow: {
     flexDirection: "row",
@@ -619,20 +731,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   feedbackSuccessText: {
+    color: "#15803D",
     fontSize: 12,
-    color: "#16A34A",
     fontWeight: "600",
+    flex: 1,
   },
   feedbackErrorText: {
-    fontSize: 12,
     color: colors.error,
+    fontSize: 12,
     fontWeight: "500",
+    flex: 1,
   },
   helperText: {
     fontSize: 11,
     color: colors.muted,
-    marginTop: 4,
+    marginTop: 5,
     paddingHorizontal: 4,
+    lineHeight: 16,
   },
   row: {
     flexDirection: "row",
@@ -640,6 +755,9 @@ const styles = StyleSheet.create({
   },
   rowCol: {
     flex: 1,
+  },
+  eyeBtn: {
+    padding: 6,
   },
   submitButton: {
     backgroundColor: colors.blue,
@@ -655,11 +773,11 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   submitButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   submitButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
   },
 });

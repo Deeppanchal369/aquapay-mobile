@@ -154,12 +154,18 @@ export default function AdminUsersScreen() {
     }
 
     if (cleaned.length === 10) {
+      if (!/^[6-9]\d{9}$/.test(cleaned)) {
+        setEditMobileStatus("taken");
+        setEditMobileMessage("Mobile number must start with 6, 7, 8, or 9");
+        return;
+      }
+
       try {
         setEditCheckingMobile(true);
         const res = await checkAvailability({ mobile: cleaned });
         if (res.available) {
           setEditMobileStatus("available");
-          setEditMobileMessage("Mobile number available");
+          setEditMobileMessage("Mobile number verified & available");
         } else {
           setEditMobileStatus("taken");
           setEditMobileMessage(res.message || "Mobile number already belongs to another user");
@@ -184,6 +190,14 @@ export default function AdminUsersScreen() {
       setEditError("Full name is required");
       return;
     }
+    if (nameTrimmed.length < 2 || nameTrimmed.length > 100) {
+      setEditError("Full name must be between 2 and 100 characters");
+      return;
+    }
+    if (!/^[a-zA-Z\s]+$/.test(nameTrimmed)) {
+      setEditError("Full name must contain only letters and spaces");
+      return;
+    }
 
     const emailTrimmed = editEmail.trim().toLowerCase();
     if (!emailTrimmed || !emailTrimmed.includes("@")) {
@@ -196,6 +210,10 @@ export default function AdminUsersScreen() {
       setEditError("Please enter a valid 10-digit mobile number");
       return;
     }
+    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
+      setEditError("Mobile number must start with 6, 7, 8, or 9");
+      return;
+    }
 
     if (cleanMobile !== editUser.mobile && editMobileStatus === "taken") {
       setEditError("This mobile number is already registered with another user");
@@ -204,6 +222,12 @@ export default function AdminUsersScreen() {
 
     if (editPassword.trim() && editPassword.trim().length < 8) {
       setEditError("New password must be at least 8 characters");
+      return;
+    }
+
+    const pincodeTrimmed = editPincode.trim();
+    if (pincodeTrimmed && !/^[1-9][0-9]{5}$/.test(pincodeTrimmed)) {
+      setEditError("Pincode must be a valid 6-digit postal code (e.g. 400001)");
       return;
     }
 
@@ -219,19 +243,19 @@ export default function AdminUsersScreen() {
       payload.mobile = cleanMobile;
     }
     if (editShopname.trim() !== (editUser.shopname || "")) {
-      payload.shopname = editShopname.trim() || undefined;
+      payload.shopname = editShopname.trim();
     }
     if (editAddress.trim() !== (editUser.address || "")) {
-      payload.address = editAddress.trim() || undefined;
+      payload.address = editAddress.trim();
     }
     if (editCity.trim() !== (editUser.city || "")) {
-      payload.city = editCity.trim() || undefined;
+      payload.city = editCity.trim();
     }
     if (editState.trim() !== (editUser.state || "")) {
-      payload.state = editState.trim() || undefined;
+      payload.state = editState.trim();
     }
-    if (editPincode.trim() !== (editUser.pincode || "")) {
-      payload.pincode = editPincode.trim() || undefined;
+    if (pincodeTrimmed !== (editUser.pincode || "")) {
+      payload.pincode = pincodeTrimmed;
     }
     if (editStatus !== editUser.status) {
       payload.status = editStatus;

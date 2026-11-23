@@ -79,6 +79,12 @@ export default function SubordinateCreateUserScreen() {
     setErrorMessage("");
 
     if (cleaned.length === 10) {
+      if (!/^[6-9]\d{9}$/.test(cleaned)) {
+        setMobileStatus("taken");
+        setMobileMessage("Indian mobile numbers must start with 6, 7, 8, or 9.");
+        return;
+      }
+
       try {
         setCheckingMobile(true);
         const res = await checkAvailability({ mobile: cleaned });
@@ -109,17 +115,33 @@ export default function SubordinateCreateUserScreen() {
       setErrorMessage("Please select a role");
       return;
     }
-    if (!name.trim()) {
+
+    const trimmedName = name.trim();
+    if (!trimmedName) {
       setErrorMessage("Please enter full name");
       return;
     }
-    if (!email.trim() || !email.includes("@")) {
+    if (trimmedName.length < 2 || trimmedName.length > 100) {
+      setErrorMessage("Full name must be between 2 and 100 characters");
+      return;
+    }
+    if (!/^[a-zA-Z\s]+$/.test(trimmedName)) {
+      setErrorMessage("Full name must contain only letters and spaces");
+      return;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
       setErrorMessage("Please enter a valid email address");
       return;
     }
     const cleanMobile = mobile.trim();
     if (!cleanMobile || cleanMobile.length < 10) {
       setErrorMessage("Please enter a valid 10-digit mobile number");
+      return;
+    }
+    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
+      setErrorMessage("Mobile number must start with 6, 7, 8, or 9.");
       return;
     }
     if (mobileStatus === "taken") {
@@ -130,8 +152,14 @@ export default function SubordinateCreateUserScreen() {
     }
     if (mobileStatus !== "available") {
       setErrorMessage(
-        "Please enter a valid 10-digit mobile number to verify availability.",
+        "Please enter an available, unregistered 10-digit mobile number.",
       );
+      return;
+    }
+
+    const cleanPincode = pincode.trim();
+    if (cleanPincode && !/^[1-9][0-9]{5}$/.test(cleanPincode)) {
+      setErrorMessage("Pincode must be a valid 6-digit postal code (e.g. 400001).");
       return;
     }
 

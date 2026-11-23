@@ -51,11 +51,11 @@ export interface UpdateUserInput {
   email?: string;
   mobile?: string;
   password?: string;
-  shopname?: string;
-  address?: string;
-  state?: string;
-  city?: string;
-  pincode?: string;
+  shopname?: string | null;
+  address?: string | null;
+  state?: string | null;
+  city?: string | null;
+  pincode?: string | null;
   status?: "active" | "inactive" | "blocked";
 }
 
