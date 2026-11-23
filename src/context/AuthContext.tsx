@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
-import { api } from "../api/client";
+import { api, setOnAuthExpired } from "../api/client";
 
 export type User = {
   id?: number | string;
@@ -95,6 +95,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(currentUser);
     return currentUser;
   };
+
+  useEffect(() => {
+    setOnAuthExpired(() => {
+      setUser(null);
+    });
+    return () => {
+      setOnAuthExpired(null);
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;

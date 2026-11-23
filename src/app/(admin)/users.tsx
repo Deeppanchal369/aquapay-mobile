@@ -72,12 +72,23 @@ export default function AdminUsersScreen() {
       setUsers(userList);
       setRoles(roleList);
     } catch (err: any) {
-      Alert.alert("Error", err?.response?.data?.message || err?.message || "Failed to load users");
+      if (err?.response?.status === 401) {
+        Alert.alert(
+          "Session Expired",
+          "Your login session has expired. Please sign in again to continue.",
+          [{ text: "Sign In", onPress: () => router.replace("/login") }]
+        );
+      } else {
+        Alert.alert(
+          "Error",
+          err?.response?.data?.message || err?.message || "Failed to load users"
+        );
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [search, selectedRoleId]);
+  }, [search, selectedRoleId, router]);
 
   useFocusEffect(
     useCallback(() => {

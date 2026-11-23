@@ -64,8 +64,16 @@ export default function SubordinateCreateUserScreen() {
         }
         setRoles(list);
         setSelectedRoleId(list[0].id);
-      } catch {
-        Alert.alert("Error", "Failed to fetch assignable roles");
+      } catch (err: any) {
+        if (err?.response?.status === 401) {
+          Alert.alert(
+            "Session Expired",
+            "Your login session has expired. Please sign in again to continue.",
+            [{ text: "Sign In", onPress: () => router.replace("/login") }]
+          );
+        } else {
+          Alert.alert("Error", err?.response?.data?.message || err?.message || "Failed to fetch assignable roles");
+        }
       } finally {
         setLoadingRoles(false);
       }
