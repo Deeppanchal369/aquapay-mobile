@@ -6,6 +6,7 @@ export default function UserLayout() {
       <Stack.Screen name="home" />
       <Stack.Screen name="team" />
       <Stack.Screen name="add-member" />
+      <Stack.Screen name="profile" />
     </Stack>
   );
 }

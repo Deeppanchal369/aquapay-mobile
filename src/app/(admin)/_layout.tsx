@@ -6,6 +6,7 @@ export default function AdminLayout() {
       <Stack.Screen name="dashboard" />
       <Stack.Screen name="users" />
       <Stack.Screen name="create-user" />
+      <Stack.Screen name="profile" />
     </Stack>
   );
 }

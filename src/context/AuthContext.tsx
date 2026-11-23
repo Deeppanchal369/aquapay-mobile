@@ -9,12 +9,26 @@ export type User = {
   email?: string;
   mobile?: string;
   shopname?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
   role: string;
   role_id?: number;
   role_name?: string;
   company_id?: number;
   company_name?: string;
+  parent_id?: number;
+  parent_name?: string;
   status?: string;
+  created_at?: string;
+  kyc?: {
+    status?: string;
+    steps_completed?: number;
+    business_type?: string | null;
+    completedSteps?: number[];
+    currentStep?: number | null;
+  } | null;
 };
 
 type AuthContextType = {

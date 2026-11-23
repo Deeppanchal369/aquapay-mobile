@@ -100,14 +100,24 @@ export default function AdminDashboard() {
         </View>
 
         {/* Profile Card */}
-        <View style={styles.profileCard}>
+        <TouchableOpacity
+          style={styles.profileCard}
+          onPress={() => router.push("/(admin)/profile" as any)}
+          activeOpacity={0.8}
+        >
           <View style={styles.avatarCircle}>
             <Ionicons name="person" size={28} color={colors.navy} />
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>
-              {user?.name || "System Admin"}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={styles.profileName}>
+                {user?.name || "System Admin"}
+              </Text>
+              <View style={styles.profileViewBadge}>
+                <Text style={styles.profileViewBadgeText}>My Profile</Text>
+                <Ionicons name="chevron-forward" size={12} color={colors.blue} />
+              </View>
+            </View>
             <Text style={styles.profileEmail}>
               {user?.email || "admin@aquapay.com"}
             </Text>
@@ -116,7 +126,7 @@ export default function AdminDashboard() {
               {user?.company_name || "Head Office"}
             </Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* Top 4 Core Metric Cards (2x2 Grid) */}
         <Text style={styles.sectionTitle}>Account Metrics</Text>
@@ -376,6 +386,23 @@ export default function AdminDashboard() {
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={styles.actionCard}
+          onPress={() => router.push("/(admin)/profile" as any)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: "#F0F9FF" }]}>
+            <Ionicons name="person-circle" size={22} color="#0284C7" />
+          </View>
+          <View style={styles.actionContent}>
+            <Text style={styles.actionTitle}>My Profile & Security</Text>
+            <Text style={styles.actionDesc}>
+              Partner ID, shop details, company & change password
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        </TouchableOpacity>
+
         {/* Sign Out Button */}
         <TouchableOpacity
           style={styles.logoutButton}
@@ -475,6 +502,22 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.muted,
     marginTop: 3,
+  },
+  profileViewBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 2,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  profileViewBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.blue,
   },
   sectionTitle: {
     fontSize: 16,

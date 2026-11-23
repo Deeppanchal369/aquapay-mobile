@@ -67,12 +67,22 @@ export default function UserDashboard() {
         </View>
 
         {/* Welcome Profile Card */}
-        <View style={styles.profileCard}>
+        <TouchableOpacity
+          style={styles.profileCard}
+          onPress={() => router.push("/(user)/profile" as any)}
+          activeOpacity={0.8}
+        >
           <View style={styles.avatarCircle}>
             <Ionicons name="person" size={26} color={colors.navy} />
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.greetingText}>Welcome,</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={styles.greetingText}>Welcome,</Text>
+              <View style={styles.profileViewBadge}>
+                <Text style={styles.profileViewBadgeText}>My Profile</Text>
+                <Ionicons name="chevron-forward" size={12} color={colors.blue} />
+              </View>
+            </View>
             <Text style={styles.profileName}>{user?.name || "Member"}</Text>
             <Text style={styles.profileEmail}>
               {user?.email || "user@example.com"}
@@ -82,7 +92,7 @@ export default function UserDashboard() {
               {user?.shopname ? `• ${user.shopname}` : ""}
             </Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* Subordinate Role: Team & Merchant Network (Only shown if role can create child users) */}
         {descendantRoles.length > 0 ? (
@@ -200,6 +210,24 @@ export default function UserDashboard() {
           </View>
         </View>
 
+        {/* Account & Profile Action */}
+        <TouchableOpacity
+          style={styles.actionCard}
+          onPress={() => router.push("/(user)/profile" as any)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.actionIcon, { backgroundColor: "#F0F9FF" }]}>
+            <Ionicons name="person-circle" size={22} color="#0284C7" />
+          </View>
+          <View style={styles.actionContent}>
+            <Text style={styles.actionTitle}>My Profile & Security</Text>
+            <Text style={styles.actionDesc}>
+              Partner ID, business details, KYC status & change password
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.muted} />
+        </TouchableOpacity>
+
         {/* Sign Out Button */}
         <TouchableOpacity
           style={styles.logoutButton}
@@ -289,6 +317,22 @@ const styles = StyleSheet.create({
     color: colors.muted,
     textTransform: "uppercase",
     letterSpacing: 0.5,
+  },
+  profileViewBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 2,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  profileViewBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.blue,
   },
   profileName: {
     fontSize: 18,
@@ -504,5 +548,36 @@ const styles = StyleSheet.create({
     color: colors.navy,
     fontSize: 13,
     fontWeight: "700",
+  },
+  actionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.bg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+  },
+  actionIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  actionDesc: {
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 2,
   },
 });
