@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Animated,
   DimensionValue,
@@ -22,7 +22,7 @@ export function Skeleton({
   borderRadius = 8,
   style,
 }: SkeletonProps) {
-  const pulseAnim = useRef(new Animated.Value(0.4)).current;
+  const [pulseAnim] = useState(() => new Animated.Value(0.4));
 
   useEffect(() => {
     const pulse = Animated.loop(

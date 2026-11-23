@@ -62,7 +62,7 @@ export default function SubordinateCreateUserScreen() {
         }
         setRoles(list);
         setSelectedRoleId(list[0].id);
-      } catch (err: any) {
+      } catch {
         Alert.alert("Error", "Failed to fetch assignable roles");
       } finally {
         setLoadingRoles(false);

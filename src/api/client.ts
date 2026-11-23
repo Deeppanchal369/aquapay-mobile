@@ -2,6 +2,7 @@ import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
+// eslint-disable-next-line import/no-named-as-default-member
 export const api = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.2:8000",
   timeout: 15000,

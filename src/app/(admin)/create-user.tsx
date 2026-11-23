@@ -58,7 +58,7 @@ export default function AdminCreateUserScreen() {
         if (list.length > 0) {
           setSelectedRoleId(list[0].id);
         }
-      } catch (err: any) {
+      } catch {
         Alert.alert("Error", "Failed to fetch assignable roles");
       } finally {
         setLoadingRoles(false);
