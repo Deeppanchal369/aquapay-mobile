@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -42,6 +43,30 @@ export default function LoginScreen() {
   const [resetBusy, setResetBusy] = useState(false);
   const [resetError, setResetError] = useState("");
   const [resetSuccessMsg, setResetSuccessMsg] = useState("");
+
+  const scrollViewRef = useRef<any>(null);
+  const [keyboardActive, setKeyboardActive] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      () => setKeyboardActive(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardActive(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const handlePasswordFocus = () => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 150);
+  };
 
   const handleSubmit = async () => {
     const cleanId = identifier.trim();
@@ -171,14 +196,27 @@ export default function LoginScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContainer}
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.scrollContainer,
+            keyboardActive && styles.scrollContainerKeyboard,
+          ]}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-          {/* Enlarged, Crisp AquaPay Logo Header */}
-          <View style={styles.brandContainer}>
+          {/* Responsive AquaPay Logo Header */}
+          <View
+            style={[
+              styles.brandContainer,
+              keyboardActive && styles.brandContainerKeyboard,
+            ]}
+          >
             <Image
               source={require("../../assets/images/company/Aqyapay logo.jpeg")}
-              style={styles.logoImage}
+              style={[
+                styles.logoImage,
+                keyboardActive && styles.logoImageKeyboard,
+              ]}
               resizeMode="contain"
             />
           </View>
@@ -246,6 +284,7 @@ export default function LoginScreen() {
                   setPassword(text);
                   if (errorMessage) setErrorMessage("");
                 }}
+                onFocus={handlePasswordFocus}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -576,16 +615,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 24,
   },
+  scrollContainerKeyboard: {
+    justifyContent: "flex-start",
+    paddingTop: 10,
+    paddingBottom: Platform.OS === "android" ? 220 : 120,
+  },
   brandContainer: {
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 20,
     width: "100%",
   },
+  brandContainerKeyboard: {
+    marginBottom: 8,
+  },
   logoImage: {
     width: "100%",
     maxWidth: 320,
     height: 155,
+  },
+  logoImageKeyboard: {
+    height: 65,
+    maxWidth: 220,
   },
   card: {
     backgroundColor: colors.bg,
