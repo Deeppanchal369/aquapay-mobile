@@ -1,7 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -14,6 +15,7 @@ import { fetchDescendantRoles, fetchUsers, RoleItem } from "../../api/users";
 import KycVerificationFlow from "../../components/KycVerificationFlow";
 import { useAuth } from "../../context/AuthContext";
 import { colors } from "../../theme/colors";
+import { getUserKyc, UserKycRecord } from "../../utils/kycStore";
 
 export default function UserDashboard() {
   const { user, logout } = useAuth();
@@ -21,6 +23,24 @@ export default function UserDashboard() {
 
   const [descendantRoles, setDescendantRoles] = useState<RoleItem[]>([]);
   const [teamCount, setTeamCount] = useState<number | null>(null);
+  const [kycRecord, setKycRecord] = useState<UserKycRecord | null>(null);
+
+  const loadKyc = useCallback(async () => {
+    if (user?.id) {
+      try {
+        const rec = await getUserKyc(user.id);
+        setKycRecord(rec);
+      } catch {
+        // quiet fallback
+      }
+    }
+  }, [user]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadKyc();
+    }, [loadKyc])
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -95,49 +115,143 @@ export default function UserDashboard() {
           </View>
         </TouchableOpacity>
 
-        {/* Subordinate Role: Team & Merchant Network (Only shown if role can create child users) */}
+        {/* Subordinate Role: Team & Merchant Network (Strictly Gated by 7-Step KYC Approval) */}
         {descendantRoles.length > 0 ? (
-          <View style={styles.teamCard}>
-            <View style={styles.teamHeaderRow}>
-              <View>
-                <Text style={styles.teamCardTitle}>Hierarchy Network</Text>
-                <Text style={styles.teamCardSubtitle}>
-                  {teamCount !== null
-                    ? `${teamCount} member${teamCount === 1 ? "" : "s"} created by your account`
-                    : "Manage subordinate accounts"}
-                </Text>
+          kycRecord?.status === "approved" ? (
+            <View style={styles.teamCard}>
+              <View style={styles.teamHeaderRow}>
+                <View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={styles.teamCardTitle}>Hierarchy Network</Text>
+                    <View style={styles.approvedBadge}>
+                      <Ionicons name="checkmark-circle" size={13} color="#16A34A" />
+                      <Text style={styles.approvedBadgeText}>APPROVED</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.teamCardSubtitle}>
+                    {teamCount !== null
+                      ? `${teamCount} member${teamCount === 1 ? "" : "s"} created by your account`
+                      : "Manage subordinate accounts"}
+                  </Text>
+                </View>
+                <View style={styles.rolesCountBadge}>
+                  <Text style={styles.rolesCountBadgeText}>
+                    {descendantRoles.length} ROLES
+                  </Text>
+                </View>
               </View>
-              <View style={styles.rolesCountBadge}>
-                <Text style={styles.rolesCountBadgeText}>
-                  {descendantRoles.length} ROLES
-                </Text>
+
+              <View style={styles.teamActionsRow}>
+                <TouchableOpacity
+                  style={styles.teamPrimaryBtn}
+                  onPress={() => router.push("/(user)/add-member" as any)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="person-add" size={16} color="#FFFFFF" />
+                  <Text style={styles.teamPrimaryBtnText}>Add Member</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.teamSecondaryBtn}
+                  onPress={() => router.push("/(user)/team" as any)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="people-outline" size={16} color={colors.navy} />
+                  <Text style={styles.teamSecondaryBtnText}>View My Team</Text>
+                </TouchableOpacity>
               </View>
             </View>
+          ) : (
+            <View style={styles.kycGateCard}>
+              <View style={styles.kycGateHeaderRow}>
+                <View style={styles.kycGateIconWrap}>
+                  <Ionicons name="lock-closed" size={20} color="#D97706" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.kycGateTitle}>Hierarchy Network (Locked)</Text>
+                  <Text style={styles.kycGateSubtitle}>
+                    Account creation & team management requires approved KYC
+                  </Text>
+                </View>
+              </View>
 
-            <View style={styles.teamActionsRow}>
-              <TouchableOpacity
-                style={styles.teamPrimaryBtn}
-                onPress={() => router.push("/(user)/add-member" as any)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="person-add" size={16} color="#FFFFFF" />
-                <Text style={styles.teamPrimaryBtnText}>Add Member</Text>
-              </TouchableOpacity>
+              <View style={styles.kycGatePhaseBox}>
+                <View style={styles.kycGatePhaseBadge}>
+                  <Ionicons
+                    name={
+                      kycRecord?.completedSteps?.includes(1)
+                        ? "time"
+                        : "alert-circle"
+                    }
+                    size={13}
+                    color={
+                      kycRecord?.completedSteps?.includes(1)
+                        ? "#0284C7"
+                        : "#D97706"
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.kycGatePhaseBadgeText,
+                      {
+                        color: kycRecord?.completedSteps?.includes(1)
+                          ? "#0284C7"
+                          : "#D97706",
+                      },
+                    ]}
+                  >
+                    {kycRecord?.completedSteps?.includes(1)
+                      ? "Phase: Step 1 Done • Step 2 Aadhaar Pending"
+                      : "Phase: Step 1 Basic Details Required"}
+                  </Text>
+                </View>
+                <Text style={styles.kycGateDesc}>
+                  {kycRecord?.completedSteps?.includes(1)
+                    ? "Your Step 1 details are saved. Once all 7 verification stages are completed and approved by Admin, you will be able to create child accounts and manage members."
+                    : "Complete Step 1 (Basic Details) below to start your partner verification."}
+                </Text>
+              </View>
 
-              <TouchableOpacity
-                style={styles.teamSecondaryBtn}
-                onPress={() => router.push("/(user)/team" as any)}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="people-outline" size={16} color={colors.navy} />
-                <Text style={styles.teamSecondaryBtnText}>View My Team</Text>
-              </TouchableOpacity>
+              <View style={styles.teamActionsRow}>
+                <TouchableOpacity
+                  style={styles.kycGateLockedBtn}
+                  onPress={() =>
+                    Alert.alert(
+                      "Feature Locked",
+                      "Creating subordinate accounts is locked until all 7 KYC verification steps are completed and approved by Admin.",
+                      [{ text: "OK" }]
+                    )
+                  }
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="lock-closed" size={15} color="#94A3B8" />
+                  <Text style={styles.kycGateLockedBtnText}>Add Member</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.kycGateLockedBtn}
+                  onPress={() =>
+                    Alert.alert(
+                      "Feature Locked",
+                      "Viewing and managing your team is locked until your KYC is verified and approved by Admin.",
+                      [{ text: "OK" }]
+                    )
+                  }
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="lock-closed" size={15} color="#94A3B8" />
+                  <Text style={styles.kycGateLockedBtnText}>View My Team</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+          )
         ) : null}
 
         {/* KYC Onboarding Progress - Guided Spotlight 7 Steps */}
-        <KycVerificationFlow />
+        <KycVerificationFlow
+          userId={user?.id}
+          onKycUpdated={(updated) => setKycRecord(updated)}
+        />
 
         {/* Account & Profile Action */}
         <TouchableOpacity
@@ -477,6 +591,100 @@ const styles = StyleSheet.create({
     color: colors.navy,
     fontSize: 13,
     fontWeight: "700",
+  },
+  approvedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+  },
+  approvedBadgeText: {
+    color: "#16A34A",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  kycGateCard: {
+    backgroundColor: "#FFFDF5",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: "#FDE68A",
+    marginBottom: 24,
+    shadowColor: "#D97706",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  kycGateHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 12,
+  },
+  kycGateIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "#FEF3C7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  kycGateTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: colors.navy,
+  },
+  kycGateSubtitle: {
+    fontSize: 12,
+    color: colors.muted,
+    marginTop: 2,
+  },
+  kycGatePhaseBox: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+    marginBottom: 14,
+  },
+  kycGatePhaseBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  kycGatePhaseBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  kycGateDesc: {
+    fontSize: 12,
+    color: colors.muted,
+    lineHeight: 18,
+  },
+  kycGateLockedBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F5F9",
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    gap: 6,
+  },
+  kycGateLockedBtnText: {
+    color: "#94A3B8",
+    fontSize: 13,
+    fontWeight: "600",
   },
   actionCard: {
     flexDirection: "row",

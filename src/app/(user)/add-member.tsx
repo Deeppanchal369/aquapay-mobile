@@ -22,11 +22,14 @@ import {
     RoleItem,
 } from "../../api/users";
 import StatusModal from "../../components/StatusModal";
+import { useAuth } from "../../context/AuthContext";
 import { useNotifications } from "../../context/NotificationContext";
 import { colors } from "../../theme/colors";
+import { getUserKyc } from "../../utils/kycStore";
 
 export default function SubordinateCreateUserScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const { showNotification } = useNotifications();
 
   const [roles, setRoles] = useState<RoleItem[]>([]);
@@ -83,6 +86,20 @@ export default function SubordinateCreateUserScreen() {
     async function loadRoles() {
       try {
         setLoadingRoles(true);
+
+        // Strict KYC Gate Check: Must be approved by Admin
+        if (user?.id) {
+          const kyc = await getUserKyc(user.id);
+          if (kyc.status !== "approved") {
+            Alert.alert(
+              "KYC Approval Required",
+              "You cannot create child accounts until your 7-step KYC verification is completed and approved by Admin.",
+              [{ text: "Go to Dashboard", onPress: () => router.replace("/(user)/home" as any) }]
+            );
+            return;
+          }
+        }
+
         const list = await fetchDescendantRoles();
         if (list.length === 0) {
           Alert.alert(
@@ -109,7 +126,7 @@ export default function SubordinateCreateUserScreen() {
       }
     }
     loadRoles();
-  }, [router]);
+  }, [router, user?.id]);
 
   const handleMobileChange = async (text: string) => {
     const cleaned = text.replace(/[^0-9]/g, "").slice(0, 10);

@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { fetchUsers, UserItem } from "../../api/users";
 import { UserListSkeleton } from "../../components/Skeleton";
+import { useAuth } from "../../context/AuthContext";
 import { useNotifications } from "../../context/NotificationContext";
 import { colors } from "../../theme/colors";
 import {
@@ -23,9 +24,11 @@ import {
     getCsvFileName,
     shareCsvViaApps,
 } from "../../utils/csvExport";
+import { getUserKyc } from "../../utils/kycStore";
 
 export default function SubordinateUsersScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const { showNotification } = useNotifications();
 
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -40,6 +43,20 @@ export default function SubordinateUsersScreen() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+
+      // Strict KYC Gate Check: Must be approved by Admin
+      if (user?.id) {
+        const kyc = await getUserKyc(user.id);
+        if (kyc.status !== "approved") {
+          Alert.alert(
+            "KYC Approval Required",
+            "You cannot view or manage team members until your 7-step KYC verification is completed and approved by Admin.",
+            [{ text: "Go to Dashboard", onPress: () => router.replace("/(user)/home" as any) }]
+          );
+          return;
+        }
+      }
+
       const userList = await fetchUsers({ search: search.trim() || undefined });
       setUsers(userList);
     } catch (err: any) {
@@ -53,7 +70,7 @@ export default function SubordinateUsersScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [search]);
+  }, [search, router, user]);
 
   useFocusEffect(
     useCallback(() => {
