@@ -347,9 +347,9 @@ export default function AdminKycAuditScreen() {
           <Ionicons name="arrow-back" size={22} color={colors.navy} />
         </TouchableOpacity>
         <View style={styles.headerTextCol}>
-          <Text style={styles.headerTitle}>Merchant KYC Audit Center</Text>
+          <Text style={styles.headerTitle}>KYC Applications</Text>
           <Text style={styles.headerSubtitle}>
-            Phase tracking, Step 1 verification & account approval
+            Review and approve partner verification
           </Text>
         </View>
         <TouchableOpacity
@@ -417,15 +417,6 @@ export default function AdminKycAuditScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.previewNoticeCard}>
-            <Ionicons name="information-circle" size={20} color="#0284C7" />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.previewNoticeTitle}>Admin Preview Mode</Text>
-              <Text style={styles.previewNoticeDesc}>
-                This shows the 7-step sequence experienced by merchants. Currently, Step 1 (Basic Details) is fully functional and validating, while Steps 2–7 remain locked pending your instructions.
-              </Text>
-            </View>
-          </View>
           <KycVerificationFlow />
         </ScrollView>
       ) : (
