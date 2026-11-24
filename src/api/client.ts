@@ -11,7 +11,7 @@ export function setOnAuthExpired(handler: AuthExpiredHandler | null) {
 
 // eslint-disable-next-line import/no-named-as-default-member
 export const api = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.8:8000",
+  baseURL: process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.7:8000",
   timeout: 15000,
   headers: {
     "Content-Type": "application/json",
