@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { fetchDescendantRoles, fetchUsers, RoleItem } from "../../api/users";
+import KycVerificationFlow from "../../components/KycVerificationFlow";
 import { useAuth } from "../../context/AuthContext";
 import { colors } from "../../theme/colors";
 
@@ -135,80 +136,8 @@ export default function UserDashboard() {
           </View>
         ) : null}
 
-        {/* KYC Onboarding Progress */}
-        <Text style={styles.sectionTitle}>KYC Verification Journey</Text>
-        <View style={styles.kycCard}>
-          <View style={styles.kycHeaderRow}>
-            <View style={styles.kycStepBadge}>
-              <Text style={styles.kycStepBadgeText}>4 STEPS</Text>
-            </View>
-            <Text style={styles.kycStatusText}>In Progress</Text>
-          </View>
-
-          <View style={styles.stepsList}>
-            <View style={styles.stepItem}>
-              <View style={[styles.stepCircle, styles.stepActive]}>
-                <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-              </View>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>
-                  Step 1: Basic Details & OTP
-                </Text>
-                <Text style={styles.stepDesc}>
-                  Mobile OTP challenge & identity initiation
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.stepDivider} />
-
-            <View style={styles.stepItem}>
-              <View style={[styles.stepCircle, styles.stepPending]}>
-                <Text style={styles.stepNumber}>2</Text>
-              </View>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>
-                  Step 2: DigiLocker Verification
-                </Text>
-                <Text style={styles.stepDesc}>
-                  Aadhaar & PAN document verification
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.stepDivider} />
-
-            <View style={styles.stepItem}>
-              <View style={[styles.stepCircle, styles.stepPending]}>
-                <Text style={styles.stepNumber}>3</Text>
-              </View>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>
-                  Step 3: Bank Account Details
-                </Text>
-                <Text style={styles.stepDesc}>
-                  Penny-drop validation and account linkage
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.stepDivider} />
-
-            <View style={styles.stepItem}>
-              <View style={[styles.stepCircle, styles.stepPending]}>
-                <Text style={styles.stepNumber}>4</Text>
-              </View>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>
-                  Step 4: Live Selfie & Video
-                </Text>
-                <Text style={styles.stepDesc}>
-                  Media capture for compliance audit
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
+        {/* KYC Onboarding Progress - Guided Spotlight 7 Steps */}
+        <KycVerificationFlow />
 
         {/* Account & Profile Action */}
         <TouchableOpacity

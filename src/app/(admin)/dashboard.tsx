@@ -373,7 +373,11 @@ export default function AdminDashboard() {
           <Ionicons name="chevron-forward" size={18} color={colors.muted} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionCard} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.actionCard}
+          onPress={() => router.push("/(admin)/kyc" as any)}
+          activeOpacity={0.7}
+        >
           <View style={[styles.actionIcon, { backgroundColor: "#FEF3C7" }]}>
             <Ionicons name="shield-checkmark" size={22} color="#D97706" />
           </View>
