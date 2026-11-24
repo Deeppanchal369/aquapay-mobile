@@ -1,7 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
-  Alert,
   Modal,
   StyleSheet,
   Text,
@@ -9,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { colors } from "../theme/colors";
+import StatusModal from "./StatusModal";
 
 export interface KycStep {
   id: number;
@@ -126,6 +126,13 @@ export default function KycVerificationFlow({
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedStep, setSelectedStep] = useState<KycStep>(KYC_STEPS[0]);
   const [actionDoneMessage, setActionDoneMessage] = useState("");
+  const [statusModal, setStatusModal] = useState<{
+    visible: boolean;
+    type?: "success" | "error" | "warning" | "info";
+    title: string;
+    message: string;
+    primaryButtonText?: string;
+  } | null>(null);
 
   const currentStepData =
     KYC_STEPS.find((s) => s.id === activeStep) || KYC_STEPS[0];
@@ -140,11 +147,13 @@ export default function KycVerificationFlow({
 
   const handleStepPress = (step: KycStep) => {
     if (isStepLocked(step.id)) {
-      Alert.alert(
-        "Complete Previous Step First",
-        `Please finish Step ${activeStep}: ${currentStepData.name} before starting Step ${step.id}.`,
-        [{ text: "OK" }]
-      );
+      setStatusModal({
+        visible: true,
+        type: "info",
+        title: "Step Locked",
+        message: `Please complete Step ${activeStep}: "${currentStepData.name}" before unlocking Step ${step.id}.`,
+        primaryButtonText: "Got It",
+      });
       return;
     }
     setSelectedStep(step);
@@ -518,6 +527,18 @@ export default function KycVerificationFlow({
           </View>
         </View>
       </Modal>
+
+      {/* Modern Notice / Status Modal */}
+      {statusModal ? (
+        <StatusModal
+          visible={statusModal.visible}
+          type={statusModal.type || "info"}
+          title={statusModal.title}
+          message={statusModal.message}
+          primaryButtonText={statusModal.primaryButtonText || "Done"}
+          onPrimaryPress={() => setStatusModal(null)}
+        />
+      ) : null}
     </View>
   );
 }

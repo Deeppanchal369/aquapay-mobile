@@ -29,6 +29,7 @@ import {
   UserItem,
 } from "../../api/users";
 import { UserListSkeleton } from "../../components/Skeleton";
+import StatusModal from "../../components/StatusModal";
 import { colors } from "../../theme/colors";
 
 export default function AdminUsersScreen() {
@@ -62,6 +63,14 @@ export default function AdminUsersScreen() {
 
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState("");
+
+  const [statusModalConfig, setStatusModalConfig] = useState<{
+    visible: boolean;
+    type?: "success" | "error" | "warning" | "info";
+    title: string;
+    message: string;
+    primaryButtonText?: string;
+  } | null>(null);
 
   const [keyboardPadding, setKeyboardPadding] = useState(0);
 
@@ -131,13 +140,25 @@ export default function AdminUsersScreen() {
           onPress: async () => {
             try {
               const res = await deleteUser(item.id);
-              Alert.alert("Success", res.message || "User action completed successfully");
+              setStatusModalConfig({
+                visible: true,
+                type: "success",
+                title: "User Action Completed",
+                message: res.message || "User was removed or deactivated successfully.",
+                primaryButtonText: "Continue",
+              });
               loadData();
             } catch (err: any) {
-              Alert.alert(
-                "Action Failed",
-                err?.response?.data?.message || err?.message || "Could not delete user",
-              );
+              setStatusModalConfig({
+                visible: true,
+                type: "error",
+                title: "Action Failed",
+                message:
+                  err?.response?.data?.message ||
+                  err?.message ||
+                  "Could not delete or block user.",
+                primaryButtonText: "Dismiss",
+              });
             }
           },
         },
@@ -302,12 +323,15 @@ export default function AdminUsersScreen() {
     try {
       setEditBusy(true);
       await updateUser(editUser.id, payload);
-      Alert.alert(
-        "User Updated",
-        `Details for ${nameTrimmed} have been successfully updated.${
-          payload.password ? "\n\nPassword was also updated." : ""
+      setStatusModalConfig({
+        visible: true,
+        type: "success",
+        title: "Changes Saved!",
+        message: `Details for ${nameTrimmed} have been successfully updated.${
+          payload.password ? " The password was also updated." : ""
         }`,
-      );
+        primaryButtonText: "Done",
+      });
       handleCloseEdit();
       loadData();
     } catch (err: any) {
@@ -829,6 +853,17 @@ export default function AdminUsersScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {statusModalConfig ? (
+        <StatusModal
+          visible={statusModalConfig.visible}
+          type={statusModalConfig.type || "success"}
+          title={statusModalConfig.title}
+          message={statusModalConfig.message}
+          primaryButtonText={statusModalConfig.primaryButtonText || "Done"}
+          onPrimaryPress={() => setStatusModalConfig(null)}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

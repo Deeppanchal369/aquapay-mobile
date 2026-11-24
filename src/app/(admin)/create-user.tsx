@@ -21,6 +21,7 @@ import {
   fetchDescendantRoles,
   RoleItem,
 } from "../../api/users";
+import StatusModal from "../../components/StatusModal";
 import { colors } from "../../theme/colors";
 
 export default function AdminCreateUserScreen() {
@@ -51,6 +52,14 @@ export default function AdminCreateUserScreen() {
 
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const [successModalData, setSuccessModalData] = useState<{
+    visible: boolean;
+    name: string;
+    role: string;
+    identifier: string;
+    password?: string;
+  } | null>(null);
 
   const scrollViewRef = useRef<any>(null);
   const [keyboardPadding, setKeyboardPadding] = useState(0);
@@ -214,21 +223,16 @@ export default function AdminCreateUserScreen() {
         pincode: cleanPincode || undefined,
       });
 
-      const passNote =
-        effectivePassword === cleanMobile
-          ? `Initial password is automatically set to mobile number (${cleanMobile}).`
-          : "Custom password configured.";
+      const roleName =
+        roles.find((r) => r.id === selectedRoleId)?.name || "Member";
 
-      Alert.alert(
-        "User Created Successfully",
-        `New account for ${trimmedName} has been created.\n\n${passNote}`,
-        [
-          {
-            text: "OK",
-            onPress: () => router.back(),
-          },
-        ],
-      );
+      setSuccessModalData({
+        visible: true,
+        name: trimmedName,
+        role: roleName,
+        identifier: cleanMobile,
+        password: effectivePassword,
+      });
     } catch (err: any) {
       const msg =
         err?.response?.data?.message ||
@@ -592,6 +596,27 @@ export default function AdminCreateUserScreen() {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {successModalData ? (
+        <StatusModal
+          visible={successModalData.visible}
+          type="success"
+          title="Account Created!"
+          message={`New partner account for ${successModalData.name} has been successfully registered.`}
+          credentials={{
+            name: successModalData.name,
+            role: successModalData.role,
+            identifier: successModalData.identifier,
+            password: successModalData.password,
+          }}
+          note="They can immediately sign in using their mobile number and this default password."
+          primaryButtonText="Go to User Directory"
+          onPrimaryPress={() => {
+            setSuccessModalData(null);
+            router.back();
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }

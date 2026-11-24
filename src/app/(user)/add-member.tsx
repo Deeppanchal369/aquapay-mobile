@@ -21,6 +21,7 @@ import {
     fetchDescendantRoles,
     RoleItem,
 } from "../../api/users";
+import StatusModal from "../../components/StatusModal";
 import { colors } from "../../theme/colors";
 
 export default function SubordinateCreateUserScreen() {
@@ -49,6 +50,14 @@ export default function SubordinateCreateUserScreen() {
 
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const [successModalData, setSuccessModalData] = useState<{
+    visible: boolean;
+    name: string;
+    role: string;
+    identifier: string;
+    password?: string;
+  } | null>(null);
 
   const scrollViewRef = useRef<any>(null);
   const [keyboardPadding, setKeyboardPadding] = useState(0);
@@ -205,16 +214,16 @@ export default function SubordinateCreateUserScreen() {
         pincode: pincode.trim() || undefined,
       });
 
-      Alert.alert(
-        "User Created Successfully",
-        `New account for ${name.trim()} has been registered.\n\nDefault login password has been set to their mobile number (${cleanMobile}).`,
-        [
-          {
-            text: "OK",
-            onPress: () => router.back(),
-          },
-        ],
-      );
+      const roleName =
+        roles.find((r) => r.id === selectedRoleId)?.name || "Member";
+
+      setSuccessModalData({
+        visible: true,
+        name: name.trim(),
+        role: roleName,
+        identifier: cleanMobile,
+        password: cleanMobile,
+      });
     } catch (err: any) {
       const msg =
         err?.response?.data?.message ||
@@ -568,6 +577,27 @@ export default function SubordinateCreateUserScreen() {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {successModalData ? (
+        <StatusModal
+          visible={successModalData.visible}
+          type="success"
+          title="Member Registered!"
+          message={`New team member ${successModalData.name} has been successfully registered.`}
+          credentials={{
+            name: successModalData.name,
+            role: successModalData.role,
+            identifier: successModalData.identifier,
+            password: successModalData.password,
+          }}
+          note="They can sign in using their mobile number and this auto-generated password."
+          primaryButtonText="View My Team"
+          onPrimaryPress={() => {
+            setSuccessModalData(null);
+            router.back();
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
