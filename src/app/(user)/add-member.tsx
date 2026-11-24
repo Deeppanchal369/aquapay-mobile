@@ -22,10 +22,12 @@ import {
     RoleItem,
 } from "../../api/users";
 import StatusModal from "../../components/StatusModal";
+import { useNotifications } from "../../context/NotificationContext";
 import { colors } from "../../theme/colors";
 
 export default function SubordinateCreateUserScreen() {
   const router = useRouter();
+  const { showNotification } = useNotifications();
 
   const [roles, setRoles] = useState<RoleItem[]>([]);
   const [loadingRoles, setLoadingRoles] = useState(true);
@@ -223,6 +225,13 @@ export default function SubordinateCreateUserScreen() {
         role: roleName,
         identifier: cleanMobile,
         password: cleanMobile,
+      });
+
+      showNotification({
+        title: "Member Added to Network",
+        message: `${name.trim()} added as ${roleName} (${cleanMobile})`,
+        type: "user",
+        actionRoute: "/(user)/team",
       });
     } catch (err: any) {
       const msg =

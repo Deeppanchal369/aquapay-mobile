@@ -22,10 +22,12 @@ import {
   RoleItem,
 } from "../../api/users";
 import StatusModal from "../../components/StatusModal";
+import { useNotifications } from "../../context/NotificationContext";
 import { colors } from "../../theme/colors";
 
 export default function AdminCreateUserScreen() {
   const router = useRouter();
+  const { showNotification } = useNotifications();
 
   const [roles, setRoles] = useState<RoleItem[]>([]);
   const [loadingRoles, setLoadingRoles] = useState(true);
@@ -232,6 +234,13 @@ export default function AdminCreateUserScreen() {
         role: roleName,
         identifier: cleanMobile,
         password: effectivePassword,
+      });
+
+      showNotification({
+        title: "Account Created",
+        message: `${trimmedName} registered as ${roleName} (${cleanMobile})`,
+        type: "user",
+        actionRoute: "/(admin)/users",
       });
     } catch (err: any) {
       const msg =

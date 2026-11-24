@@ -2,6 +2,8 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { AuthProvider, useAuth } from "../context/AuthContext";
+import { NotificationProvider } from "../context/NotificationContext";
+import InAppNotificationBanner from "../components/InAppNotificationBanner";
 import { colors } from "../theme/colors";
 
 function Gate() {
@@ -58,7 +60,10 @@ function Gate() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <Gate />
+      <NotificationProvider>
+        <Gate />
+        <InAppNotificationBanner />
+      </NotificationProvider>
     </AuthProvider>
   );
 }

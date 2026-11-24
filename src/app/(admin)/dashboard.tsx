@@ -12,14 +12,18 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { fetchUsers } from "../../api/users";
+import NotificationCenterModal from "../../components/NotificationCenterModal";
 import { useAuth } from "../../context/AuthContext";
+import { useNotifications } from "../../context/NotificationContext";
 import { colors } from "../../theme/colors";
 
 export default function AdminDashboard() {
   const { user, logout } = useAuth();
+  const { unreadCount, simulateLiveEvent } = useNotifications();
   const router = useRouter();
 
   const [refreshing, setRefreshing] = useState(false);
+  const [notifModalVisible, setNotifModalVisible] = useState(false);
   const [stats, setStats] = useState({
     totalUsers: 40,
     activeUsers: 38,
@@ -90,12 +94,29 @@ export default function AdminDashboard() {
           />
         </View>
 
-        {/* Header Bar with Subtitle and Admin Badge */}
+        {/* Header Bar with Subtitle, Notification Bell and Admin Badge */}
         <View style={styles.headerBar}>
           <Text style={styles.headerSubtitle}>Admin Control Portal</Text>
-          <View style={styles.adminBadge}>
-            <Ionicons name="shield-checkmark" size={14} color="#FFFFFF" />
-            <Text style={styles.adminBadgeText}>ADMIN</Text>
+          <View style={styles.headerRightActions}>
+            <TouchableOpacity
+              style={styles.bellButton}
+              onPress={() => setNotifModalVisible(true)}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="notifications-outline" size={20} color={colors.navy} />
+              {unreadCount > 0 && (
+                <View style={styles.bellBadge}>
+                  <Text style={styles.bellBadgeText}>
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.adminBadge}>
+              <Ionicons name="shield-checkmark" size={14} color="#FFFFFF" />
+              <Text style={styles.adminBadgeText}>ADMIN</Text>
+            </View>
           </View>
         </View>
 
@@ -326,8 +347,41 @@ export default function AdminDashboard() {
           </View>
         </ScrollView>
 
+        {/* Real-time Network Activity Bar */}
+        <View style={styles.liveActivityCard}>
+          <View style={styles.liveActivityLeft}>
+            <View style={styles.liveActivityDot} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.liveActivityTitle}>Live Network Stream</Text>
+              <Text style={styles.liveActivitySub}>
+                Real-time updates for member registrations & KYC
+              </Text>
+            </View>
+          </View>
+          <View style={styles.liveActivityBtnRow}>
+            <TouchableOpacity
+              style={styles.liveActivityActionBtn}
+              onPress={() => simulateLiveEvent()}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="flash" size={13} color="#D97706" />
+              <Text style={styles.liveActivityActionText}>Test Alert</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.liveActivityActionBtn, { backgroundColor: colors.lightBlue }]}
+              onPress={() => setNotifModalVisible(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="list" size={13} color={colors.navy} />
+              <Text style={[styles.liveActivityActionText, { color: colors.navy }]}>
+                Feed ({unreadCount})
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Admin Management Actions */}
-        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Management Modules</Text>
+        <Text style={[styles.sectionTitle, { marginTop: 18 }]}>Management Modules</Text>
 
         <TouchableOpacity
           style={styles.actionCard}
@@ -417,6 +471,12 @@ export default function AdminDashboard() {
           <Text style={styles.logoutButtonText}>Sign Out</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Slide-Up Notification & Activity Center */}
+      <NotificationCenterModal
+        visible={notifModalVisible}
+        onClose={() => setNotifModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -453,6 +513,39 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: colors.muted,
   },
+  headerRightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  bellButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.lightBlue,
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  bellBadge: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    backgroundColor: colors.error,
+    borderRadius: 9,
+    minWidth: 17,
+    height: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
+  },
+  bellBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 9,
+    fontWeight: "800",
+  },
   adminBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -467,6 +560,60 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.5,
+  },
+  liveActivityCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginTop: 16,
+  },
+  liveActivityLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    marginRight: 8,
+  },
+  liveActivityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#16A34A",
+    marginRight: 10,
+  },
+  liveActivityTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  liveActivitySub: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 1,
+  },
+  liveActivityBtnRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  liveActivityActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 4,
+  },
+  liveActivityActionText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#B45309",
   },
   profileCard: {
     flexDirection: "row",

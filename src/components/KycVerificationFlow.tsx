@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { colors } from "../theme/colors";
+import { useNotifications } from "../context/NotificationContext";
 import StatusModal from "./StatusModal";
 
 export interface KycStep {
@@ -118,6 +119,7 @@ export default function KycVerificationFlow({
   currentStepId = 1,
   onStepComplete,
 }: Props) {
+  const { showNotification } = useNotifications();
   // Current active step that the user is working on (1-7)
   const [activeStep, setActiveStep] = useState<number>(currentStepId);
   // Track completed steps (step ids that are finished)
@@ -184,6 +186,13 @@ export default function KycVerificationFlow({
     setActionDoneMessage(
       `Step ${selectedStep.id} (${selectedStep.name}) completed successfully!`
     );
+
+    showNotification({
+      title: `KYC Step ${selectedStep.id} Verified`,
+      message: `${selectedStep.name} completed successfully.`,
+      type: "kyc",
+      actionRoute: "/(admin)/kyc",
+    });
 
     setTimeout(() => {
       setActionDoneMessage("");
