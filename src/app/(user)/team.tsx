@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -18,9 +18,10 @@ import { UserListSkeleton } from "../../components/Skeleton";
 import { useNotifications } from "../../context/NotificationContext";
 import { colors } from "../../theme/colors";
 import {
-    exportCsvFile,
+    downloadCsvToDevice,
     generateUsersCsv,
     getCsvFileName,
+    shareCsvViaApps,
 } from "../../utils/csvExport";
 
 export default function SubordinateUsersScreen() {
@@ -31,7 +32,10 @@ export default function SubordinateUsersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
-  const [exportingCsv, setExportingCsv] = useState(false);
+  const [busyAction, setBusyAction] = useState<"download" | "share" | null>(null);
+
+  const isProcessingRef = useRef(false);
+  const lastActionTimeRef = useRef(0);
 
   const loadData = useCallback(async () => {
     try {
@@ -62,23 +66,31 @@ export default function SubordinateUsersScreen() {
     loadData();
   };
 
-  const handleExportCsv = async () => {
+  const handleDownloadCsv = async () => {
+    const now = Date.now();
+    // Hardware guard & 2.5-second cooldown to block rapid spam clicks
+    if (isProcessingRef.current || busyAction !== null || now - lastActionTimeRef.current < 2500) {
+      return;
+    }
     if (users.length === 0) {
       Alert.alert("Notice", "No user records to download.");
       return;
     }
 
     try {
-      setExportingCsv(true);
+      isProcessingRef.current = true;
+      lastActionTimeRef.current = now;
+      setBusyAction("download");
+
       const fileName = getCsvFileName("Network_Members", search);
       const csvContent = generateUsersCsv(users);
 
-      const result = await exportCsvFile(csvContent, fileName);
+      const result = await downloadCsvToDevice(csvContent, fileName);
 
       if (result.success) {
         showNotification({
-          title: "CSV Download Ready",
-          message: `${fileName} (${users.length} members) downloaded successfully.`,
+          title: "File Saved to Device",
+          message: `${fileName} (${users.length} members) downloaded.`,
           type: "system",
         });
 
@@ -88,17 +100,66 @@ export default function SubordinateUsersScreen() {
         );
       } else {
         Alert.alert(
-          "Export Failed",
-          result.message || "Could not generate or download CSV file."
+          "Download Cancelled / Failed",
+          result.message || "Could not save CSV file."
         );
       }
     } catch (err: any) {
       Alert.alert(
-        "Export Error",
+        "Download Error",
         err?.message || "An unexpected error occurred during export."
       );
     } finally {
-      setExportingCsv(false);
+      setTimeout(() => {
+        isProcessingRef.current = false;
+        setBusyAction(null);
+      }, 800);
+    }
+  };
+
+  const handleShareCsv = async () => {
+    const now = Date.now();
+    // Hardware guard & 2.5-second cooldown to block rapid spam clicks
+    if (isProcessingRef.current || busyAction !== null || now - lastActionTimeRef.current < 2500) {
+      return;
+    }
+    if (users.length === 0) {
+      Alert.alert("Notice", "No user records to share.");
+      return;
+    }
+
+    try {
+      isProcessingRef.current = true;
+      lastActionTimeRef.current = now;
+      setBusyAction("share");
+
+      const fileName = getCsvFileName("Network_Members", search);
+      const csvContent = generateUsersCsv(users);
+
+      const result = await shareCsvViaApps(csvContent, fileName);
+
+      if (result.success) {
+        showNotification({
+          title: "Ready to Share",
+          message: `Opened share dialog for ${fileName}.`,
+          type: "system",
+        });
+      } else {
+        Alert.alert(
+          "Share Failed",
+          result.message || "Could not share CSV file."
+        );
+      }
+    } catch (err: any) {
+      Alert.alert(
+        "Share Error",
+        err?.message || "An unexpected error occurred during share."
+      );
+    } finally {
+      setTimeout(() => {
+        isProcessingRef.current = false;
+        setBusyAction(null);
+      }, 800);
     }
   };
 
@@ -157,24 +218,49 @@ export default function SubordinateUsersScreen() {
           </Text>
         </View>
 
-        <TouchableOpacity
-          style={[
-            styles.downloadCsvButton,
-            (exportingCsv || users.length === 0) && styles.downloadCsvButtonDisabled,
-          ]}
-          onPress={handleExportCsv}
-          disabled={exportingCsv || users.length === 0}
-          activeOpacity={0.8}
-        >
-          {exportingCsv ? (
-            <ActivityIndicator size="small" color="#059669" />
-          ) : (
-            <Ionicons name="download-outline" size={16} color="#059669" />
-          )}
-          <Text style={styles.downloadCsvButtonText}>
-            {exportingCsv ? "Exporting..." : "Download CSV"}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.actionButtonGroup}>
+          {/* Button 1: Direct Download to Device */}
+          <TouchableOpacity
+            style={[
+              styles.actionPillButton,
+              styles.downloadButton,
+              (busyAction !== null || users.length === 0) && styles.actionButtonDisabled,
+            ]}
+            onPress={handleDownloadCsv}
+            disabled={busyAction !== null || users.length === 0}
+            activeOpacity={0.75}
+          >
+            {busyAction === "download" ? (
+              <ActivityIndicator size="small" color="#059669" />
+            ) : (
+              <Ionicons name="download-outline" size={15} color="#059669" />
+            )}
+            <Text style={styles.downloadButtonText}>
+              {busyAction === "download" ? "Saving..." : "Download"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Button 2: Share via Apps */}
+          <TouchableOpacity
+            style={[
+              styles.actionPillButton,
+              styles.shareButton,
+              (busyAction !== null || users.length === 0) && styles.actionButtonDisabled,
+            ]}
+            onPress={handleShareCsv}
+            disabled={busyAction !== null || users.length === 0}
+            activeOpacity={0.75}
+          >
+            {busyAction === "share" ? (
+              <ActivityIndicator size="small" color="#0284C7" />
+            ) : (
+              <Ionicons name="share-social-outline" size={15} color="#0284C7" />
+            )}
+            <Text style={styles.shareButtonText}>
+              {busyAction === "share" ? "Sharing..." : "Share"}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* List */}
@@ -365,27 +451,44 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.text,
   },
-  downloadCsvButton: {
+  actionButtonGroup: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
+  },
+  actionPillButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 9,
+    gap: 5,
+    minHeight: 36,
+  },
+  downloadButton: {
     backgroundColor: "#ECFDF5",
     borderWidth: 1,
     borderColor: "#A7F3D0",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    gap: 6,
-    minHeight: 38,
   },
-  downloadCsvButtonDisabled: {
-    opacity: 0.5,
-    backgroundColor: "#F1F5F9",
-    borderColor: "#E2E8F0",
-  },
-  downloadCsvButtonText: {
+  downloadButtonText: {
     fontSize: 12,
     fontWeight: "700",
     color: "#059669",
+  },
+  shareButton: {
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+  },
+  shareButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0284C7",
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+    backgroundColor: "#F1F5F9",
+    borderColor: "#E2E8F0",
   },
   listContent: {
     paddingHorizontal: 18,

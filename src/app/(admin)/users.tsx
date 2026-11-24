@@ -33,9 +33,10 @@ import StatusModal from "../../components/StatusModal";
 import { useNotifications } from "../../context/NotificationContext";
 import { colors } from "../../theme/colors";
 import {
-  exportCsvFile,
+  downloadCsvToDevice,
   generateUsersCsv,
   getCsvFileName,
+  shareCsvViaApps,
 } from "../../utils/csvExport";
 
 export default function AdminUsersScreen() {
@@ -48,7 +49,10 @@ export default function AdminUsersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedRoleId, setSelectedRoleId] = useState<number | undefined>(undefined);
-  const [exportingCsv, setExportingCsv] = useState(false);
+  const [busyAction, setBusyAction] = useState<"download" | "share" | null>(null);
+
+  const isProcessingRef = React.useRef(false);
+  const lastActionTimeRef = React.useRef(0);
 
   // Edit Modal State
   const [editUser, setEditUser] = useState<UserItem | null>(null);
@@ -386,23 +390,31 @@ export default function AdminUsersScreen() {
   const selectedRoleObj = roles.find((r) => r.id === selectedRoleId);
   const activeRoleName = selectedRoleObj ? selectedRoleObj.name : "All Roles";
 
-  const handleExportCsv = async () => {
+  const handleDownloadCsv = async () => {
+    const now = Date.now();
+    // Hardware guard & 2.5-second cooldown to block rapid spam clicks
+    if (isProcessingRef.current || busyAction !== null || now - lastActionTimeRef.current < 2500) {
+      return;
+    }
     if (users.length === 0) {
       Alert.alert("Notice", "No user records to download.");
       return;
     }
 
     try {
-      setExportingCsv(true);
+      isProcessingRef.current = true;
+      lastActionTimeRef.current = now;
+      setBusyAction("download");
+
       const fileName = getCsvFileName(activeRoleName, search);
       const csvContent = generateUsersCsv(users);
 
-      const result = await exportCsvFile(csvContent, fileName);
+      const result = await downloadCsvToDevice(csvContent, fileName);
 
       if (result.success) {
         showNotification({
-          title: "CSV Download Ready",
-          message: `${fileName} (${users.length} records) downloaded successfully.`,
+          title: "File Saved to Device",
+          message: `${fileName} (${users.length} records) downloaded.`,
           type: "system",
         });
 
@@ -417,8 +429,8 @@ export default function AdminUsersScreen() {
         setStatusModalConfig({
           visible: true,
           type: "error",
-          title: "Export Failed",
-          message: result.message || "Could not generate or download CSV file.",
+          title: "Download Cancelled / Failed",
+          message: result.message || "Could not save CSV file.",
           primaryButtonText: "Dismiss",
         });
       }
@@ -426,12 +438,67 @@ export default function AdminUsersScreen() {
       setStatusModalConfig({
         visible: true,
         type: "error",
-        title: "Export Error",
-        message: err?.message || "An unexpected error occurred during export.",
+        title: "Download Error",
+        message: err?.message || "An unexpected error occurred during file download.",
         primaryButtonText: "Dismiss",
       });
     } finally {
-      setExportingCsv(false);
+      setTimeout(() => {
+        isProcessingRef.current = false;
+        setBusyAction(null);
+      }, 800);
+    }
+  };
+
+  const handleShareCsv = async () => {
+    const now = Date.now();
+    // Hardware guard & 2.5-second cooldown to block rapid spam clicks
+    if (isProcessingRef.current || busyAction !== null || now - lastActionTimeRef.current < 2500) {
+      return;
+    }
+    if (users.length === 0) {
+      Alert.alert("Notice", "No user records to share.");
+      return;
+    }
+
+    try {
+      isProcessingRef.current = true;
+      lastActionTimeRef.current = now;
+      setBusyAction("share");
+
+      const fileName = getCsvFileName(activeRoleName, search);
+      const csvContent = generateUsersCsv(users);
+
+      const result = await shareCsvViaApps(csvContent, fileName);
+
+      if (result.success) {
+        showNotification({
+          title: "Ready to Share",
+          message: `Opened share dialog for ${fileName}.`,
+          type: "system",
+        });
+      } else {
+        setStatusModalConfig({
+          visible: true,
+          type: "error",
+          title: "Share Failed",
+          message: result.message || "Could not share CSV file.",
+          primaryButtonText: "Dismiss",
+        });
+      }
+    } catch (err: any) {
+      setStatusModalConfig({
+        visible: true,
+        type: "error",
+        title: "Share Error",
+        message: err?.message || "An unexpected error occurred during share.",
+        primaryButtonText: "Dismiss",
+      });
+    } finally {
+      setTimeout(() => {
+        isProcessingRef.current = false;
+        setBusyAction(null);
+      }, 800);
     }
   };
 
@@ -539,24 +606,49 @@ export default function AdminUsersScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          style={[
-            styles.downloadCsvButton,
-            (exportingCsv || users.length === 0) && styles.downloadCsvButtonDisabled,
-          ]}
-          onPress={handleExportCsv}
-          disabled={exportingCsv || users.length === 0}
-          activeOpacity={0.8}
-        >
-          {exportingCsv ? (
-            <ActivityIndicator size="small" color="#059669" />
-          ) : (
-            <Ionicons name="download-outline" size={16} color="#059669" />
-          )}
-          <Text style={styles.downloadCsvButtonText}>
-            {exportingCsv ? "Exporting..." : "Download CSV"}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.actionButtonGroup}>
+          {/* Button 1: Direct Download to Device */}
+          <TouchableOpacity
+            style={[
+              styles.actionPillButton,
+              styles.downloadButton,
+              (busyAction !== null || users.length === 0) && styles.actionButtonDisabled,
+            ]}
+            onPress={handleDownloadCsv}
+            disabled={busyAction !== null || users.length === 0}
+            activeOpacity={0.75}
+          >
+            {busyAction === "download" ? (
+              <ActivityIndicator size="small" color="#059669" />
+            ) : (
+              <Ionicons name="download-outline" size={15} color="#059669" />
+            )}
+            <Text style={styles.downloadButtonText}>
+              {busyAction === "download" ? "Saving..." : "Download"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Button 2: Share via Apps */}
+          <TouchableOpacity
+            style={[
+              styles.actionPillButton,
+              styles.shareButton,
+              (busyAction !== null || users.length === 0) && styles.actionButtonDisabled,
+            ]}
+            onPress={handleShareCsv}
+            disabled={busyAction !== null || users.length === 0}
+            activeOpacity={0.75}
+          >
+            {busyAction === "share" ? (
+              <ActivityIndicator size="small" color="#0284C7" />
+            ) : (
+              <Ionicons name="share-social-outline" size={15} color="#0284C7" />
+            )}
+            <Text style={styles.shareButtonText}>
+              {busyAction === "share" ? "Sharing..." : "Share"}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* User Cards List */}
@@ -1087,27 +1179,44 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#0369A1",
   },
-  downloadCsvButton: {
+  actionButtonGroup: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
+  },
+  actionPillButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 9,
+    gap: 5,
+    minHeight: 36,
+  },
+  downloadButton: {
     backgroundColor: "#ECFDF5",
     borderWidth: 1,
     borderColor: "#A7F3D0",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    gap: 6,
-    minHeight: 38,
   },
-  downloadCsvButtonDisabled: {
-    opacity: 0.5,
-    backgroundColor: "#F1F5F9",
-    borderColor: "#E2E8F0",
-  },
-  downloadCsvButtonText: {
+  downloadButtonText: {
     fontSize: 12,
     fontWeight: "700",
     color: "#059669",
+  },
+  shareButton: {
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+  },
+  shareButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0284C7",
+  },
+  actionButtonDisabled: {
+    opacity: 0.5,
+    backgroundColor: "#F1F5F9",
+    borderColor: "#E2E8F0",
   },
   listContent: {
     paddingHorizontal: 18,

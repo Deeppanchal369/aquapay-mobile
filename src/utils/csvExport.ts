@@ -1,4 +1,5 @@
 import { File, Paths } from "expo-file-system";
+import { StorageAccessFramework } from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { Platform, Share } from "react-native";
 import { UserItem } from "../api/users";
@@ -81,13 +82,17 @@ export function getCsvFileName(
 }
 
 /**
- * Exports CSV content to device download/share sheet across Web, Android, and iOS
+ * OPTION 1: Direct File Download to Device
+ * - Web: Triggers direct browser download into Downloads folder.
+ * - Android: Uses Storage Access Framework (SAF) to let the user select/save directly into Downloads.
+ * - iOS / Fallback: Writes to app files with direct document access.
  */
-export async function exportCsvFile(
+export async function downloadCsvToDevice(
   csvContent: string,
   fileName: string
-): Promise<{ success: boolean; message: string }> {
+): Promise<{ success: boolean; message: string; method: "download" | "saf" | "share" }> {
   try {
+    // 1. Web direct browser download
     if (Platform.OS === "web") {
       if (typeof window !== "undefined" && typeof document !== "undefined") {
         const blob = new Blob([csvContent], {
@@ -103,48 +108,129 @@ export async function exportCsvFile(
         URL.revokeObjectURL(url);
         return {
           success: true,
-          message: `File ${fileName} downloaded successfully to your device.`,
+          message: `File "${fileName}" downloaded directly to your Downloads folder.`,
+          method: "download",
         };
       }
     }
 
-    // Native Mobile (Android & iOS)
-    try {
-      const file = new File(Paths.cache, fileName);
-      if (!file.exists) {
-        file.create();
+    // 2. Android: Storage Access Framework (direct save to selected folder, e.g. Downloads)
+    if (Platform.OS === "android") {
+      try {
+        const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+        if (permissions.granted) {
+          const rawName = fileName.replace(/\.csv$/i, "");
+          const fileUri = await StorageAccessFramework.createFileAsync(
+            permissions.directoryUri,
+            rawName,
+            "text/csv"
+          );
+          await StorageAccessFramework.writeAsStringAsync(fileUri, csvContent, {
+            encoding: "utf8",
+          });
+          return {
+            success: true,
+            message: `File "${fileName}" saved directly to your selected device folder.`,
+            method: "saf",
+          };
+        }
+      } catch {
+        // User cancelled SAF or platform fallback
       }
-      await file.write(csvContent);
-
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        await Sharing.shareAsync(file.uri, {
-          mimeType: "text/csv",
-          dialogTitle: `Download / Save ${fileName}`,
-          UTI: "public.comma-separated-values-text",
-        });
-        return {
-          success: true,
-          message: `File ${fileName} prepared for download.`,
-        };
-      }
-    } catch {
-      // Fallback in case of sandboxed or older engine
     }
 
-    // Fallback to React Native Share
+    // 3. Native FileSystem & Sharing fallback for iOS / when SAF is bypassed
+    const file = new File(Paths.cache, fileName);
+    if (!file.exists) {
+      file.create();
+    }
+    await file.write(csvContent);
+
+    const isAvailable = await Sharing.isAvailableAsync();
+    if (isAvailable) {
+      await Sharing.shareAsync(file.uri, {
+        mimeType: "text/csv",
+        dialogTitle: `Save ${fileName}`,
+        UTI: "public.comma-separated-values-text",
+      });
+      return {
+        success: true,
+        message: `File "${fileName}" prepared. Choose 'Save to Files' to store permanently.`,
+        method: "share",
+      };
+    }
+
     await Share.share({
       title: fileName,
       message: csvContent,
     });
     return {
       success: true,
-      message: `File ${fileName} shared successfully.`,
+      message: `File "${fileName}" exported successfully.`,
+      method: "share",
     };
   } catch (err: any) {
     return {
       success: false,
-      message: err?.message || "Failed to export CSV file.",
+      message: err?.message || "Failed to download CSV file.",
+      method: "download",
     };
   }
+}
+
+/**
+ * OPTION 2: Share File via Installed Apps (WhatsApp, Email, Drive, etc.)
+ */
+export async function shareCsvViaApps(
+  csvContent: string,
+  fileName: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    const file = new File(Paths.cache, fileName);
+    if (!file.exists) {
+      file.create();
+    }
+    await file.write(csvContent);
+
+    const isAvailable = await Sharing.isAvailableAsync();
+    if (isAvailable) {
+      await Sharing.shareAsync(file.uri, {
+        mimeType: "text/csv",
+        dialogTitle: `Share ${fileName} via...`,
+        UTI: "public.comma-separated-values-text",
+      });
+      return {
+        success: true,
+        message: `Share dialog opened for "${fileName}".`,
+      };
+    } else {
+      await Share.share({
+        title: fileName,
+        message: csvContent,
+      });
+      return {
+        success: true,
+        message: `Shared "${fileName}" successfully.`,
+      };
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      message: err?.message || "Failed to share CSV file.",
+    };
+  }
+}
+
+/**
+ * Backwards compatibility helper
+ */
+export async function exportCsvFile(
+  csvContent: string,
+  fileName: string,
+  mode: "download" | "share" = "download"
+): Promise<{ success: boolean; message: string }> {
+  if (mode === "share") {
+    return shareCsvViaApps(csvContent, fileName);
+  }
+  return downloadCsvToDevice(csvContent, fileName);
 }
