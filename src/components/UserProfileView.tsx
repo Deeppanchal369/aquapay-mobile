@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
@@ -42,6 +43,30 @@ export default function UserProfileView({ role }: Props) {
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
+
+  const scrollViewRef = useRef<any>(null);
+  const [keyboardPadding, setKeyboardPadding] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => setKeyboardPadding(e.endCoordinates.height)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardPadding(0)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const handlePasswordFocus = () => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 150);
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -157,11 +182,17 @@ export default function UserProfileView({ role }: Props) {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContainer}
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.scrollContainer,
+            { paddingBottom: keyboardPadding > 0 ? keyboardPadding + 80 : 40 },
+          ]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
+          showsVerticalScrollIndicator={false}
         >
           {/* Header Row */}
           <View style={styles.topBar}>
@@ -449,6 +480,7 @@ export default function UserProfileView({ role }: Props) {
                           setCurrentPassword(val);
                           if (passwordError) setPasswordError("");
                         }}
+                        onFocus={handlePasswordFocus}
                         secureTextEntry={!showCurrentPassword}
                         placeholder="••••••••"
                         placeholderTextColor={colors.muted}
@@ -484,6 +516,7 @@ export default function UserProfileView({ role }: Props) {
                           setNewPassword(val);
                           if (passwordError) setPasswordError("");
                         }}
+                        onFocus={handlePasswordFocus}
                         secureTextEntry={!showNewPassword}
                         placeholder="••••••••"
                         placeholderTextColor={colors.muted}
@@ -517,6 +550,7 @@ export default function UserProfileView({ role }: Props) {
                           setConfirmPassword(val);
                           if (passwordError) setPasswordError("");
                         }}
+                        onFocus={handlePasswordFocus}
                         secureTextEntry={!showConfirmPassword}
                         placeholder="••••••••"
                         placeholderTextColor={colors.muted}

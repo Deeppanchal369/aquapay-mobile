@@ -378,13 +378,20 @@ export default function LoginScreen() {
                 </TouchableOpacity>
               </View>
 
-              {/* Status or Error Notice */}
-              {Boolean(resetError) && (
-                <View style={styles.modalAlertError}>
-                  <Ionicons name="alert-circle" size={18} color={colors.error} />
-                  <Text style={styles.modalAlertText}>{resetError}</Text>
-                </View>
-              )}
+              <ScrollView
+                style={{ maxHeight: 440 }}
+                contentContainerStyle={{ paddingBottom: keyboardActive ? 120 : 16 }}
+                keyboardShouldPersistTaps="handled"
+                automaticallyAdjustKeyboardInsets={true}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Status or Error Notice */}
+                {Boolean(resetError) && (
+                  <View style={styles.modalAlertError}>
+                    <Ionicons name="alert-circle" size={18} color={colors.error} />
+                    <Text style={styles.modalAlertText}>{resetError}</Text>
+                  </View>
+                )}
 
               {/* STEP 1: Enter Email or Mobile */}
               {resetStep === "identifier" && (
@@ -593,8 +600,9 @@ export default function LoginScreen() {
                   </TouchableOpacity>
                 </View>
               )}
-            </View>
+            </ScrollView>
           </View>
+        </View>
         </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>

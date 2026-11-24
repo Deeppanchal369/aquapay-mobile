@@ -1,9 +1,10 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Keyboard,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -48,6 +49,24 @@ export default function SubordinateCreateUserScreen() {
 
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  const scrollViewRef = useRef<any>(null);
+  const [keyboardPadding, setKeyboardPadding] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => setKeyboardPadding(e.endCoordinates.height)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardPadding(0)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     async function loadRoles() {
@@ -231,8 +250,14 @@ export default function SubordinateCreateUserScreen() {
         </View>
 
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          ref={scrollViewRef}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: keyboardPadding > 0 ? keyboardPadding + 50 : 50 },
+          ]}
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
+          showsVerticalScrollIndicator={false}
         >
           {/* Error Banner */}
           {Boolean(errorMessage) && (

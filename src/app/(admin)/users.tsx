@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -61,6 +62,23 @@ export default function AdminUsersScreen() {
 
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState("");
+
+  const [keyboardPadding, setKeyboardPadding] = useState(0);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => setKeyboardPadding(e.endCoordinates.height)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardPadding(0)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -559,9 +577,12 @@ export default function AdminUsersScreen() {
 
             <ScrollView
               style={styles.modalBodyScroll}
-              contentContainerStyle={{ paddingBottom: 20 }}
+              contentContainerStyle={{
+                paddingBottom: keyboardPadding > 0 ? keyboardPadding + 40 : 30,
+              }}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              automaticallyAdjustKeyboardInsets={true}
             >
               {/* Inline Error Alert */}
               {Boolean(editError) && (
