@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import {
+    ActivityIndicator,
     Alert,
     FlatList,
     RefreshControl,
@@ -14,15 +15,23 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { fetchUsers, UserItem } from "../../api/users";
 import { UserListSkeleton } from "../../components/Skeleton";
+import { useNotifications } from "../../context/NotificationContext";
 import { colors } from "../../theme/colors";
+import {
+    exportCsvFile,
+    generateUsersCsv,
+    getCsvFileName,
+} from "../../utils/csvExport";
 
 export default function SubordinateUsersScreen() {
   const router = useRouter();
+  const { showNotification } = useNotifications();
 
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
+  const [exportingCsv, setExportingCsv] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -51,6 +60,46 @@ export default function SubordinateUsersScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
+  };
+
+  const handleExportCsv = async () => {
+    if (users.length === 0) {
+      Alert.alert("Notice", "No user records to download.");
+      return;
+    }
+
+    try {
+      setExportingCsv(true);
+      const fileName = getCsvFileName("Network_Members", search);
+      const csvContent = generateUsersCsv(users);
+
+      const result = await exportCsvFile(csvContent, fileName);
+
+      if (result.success) {
+        showNotification({
+          title: "CSV Download Ready",
+          message: `${fileName} (${users.length} members) downloaded successfully.`,
+          type: "system",
+        });
+
+        Alert.alert(
+          "Download Successful",
+          `Exported ${users.length} member records to "${fileName}".`
+        );
+      } else {
+        Alert.alert(
+          "Export Failed",
+          result.message || "Could not generate or download CSV file."
+        );
+      }
+    } catch (err: any) {
+      Alert.alert(
+        "Export Error",
+        err?.message || "An unexpected error occurred during export."
+      );
+    } finally {
+      setExportingCsv(false);
+    }
   };
 
   return (
@@ -97,6 +146,35 @@ export default function SubordinateUsersScreen() {
             <Ionicons name="close-circle" size={18} color={colors.muted} />
           </TouchableOpacity>
         ) : null}
+      </View>
+
+      {/* Spacious, Modern Summary & CSV Export Action Bar */}
+      <View style={styles.exportBar}>
+        <View style={styles.recordCountBox}>
+          <Ionicons name="people" size={16} color={colors.navy} />
+          <Text style={styles.recordCountText}>
+            {users.length} {users.length === 1 ? "Member" : "Members"}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={[
+            styles.downloadCsvButton,
+            (exportingCsv || users.length === 0) && styles.downloadCsvButtonDisabled,
+          ]}
+          onPress={handleExportCsv}
+          disabled={exportingCsv || users.length === 0}
+          activeOpacity={0.8}
+        >
+          {exportingCsv ? (
+            <ActivityIndicator size="small" color="#059669" />
+          ) : (
+            <Ionicons name="download-outline" size={16} color="#059669" />
+          )}
+          <Text style={styles.downloadCsvButtonText}>
+            {exportingCsv ? "Exporting..." : "Download CSV"}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* List */}
@@ -262,6 +340,52 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     marginLeft: 8,
+  },
+  exportBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    backgroundColor: "#F8FAFC",
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "#E2E8F0",
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  recordCountBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+  },
+  recordCountText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  downloadCsvButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 6,
+    minHeight: 38,
+  },
+  downloadCsvButtonDisabled: {
+    opacity: 0.5,
+    backgroundColor: "#F1F5F9",
+    borderColor: "#E2E8F0",
+  },
+  downloadCsvButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#059669",
   },
   listContent: {
     paddingHorizontal: 18,

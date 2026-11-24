@@ -30,10 +30,17 @@ import {
 } from "../../api/users";
 import { UserListSkeleton } from "../../components/Skeleton";
 import StatusModal from "../../components/StatusModal";
+import { useNotifications } from "../../context/NotificationContext";
 import { colors } from "../../theme/colors";
+import {
+  exportCsvFile,
+  generateUsersCsv,
+  getCsvFileName,
+} from "../../utils/csvExport";
 
 export default function AdminUsersScreen() {
   const router = useRouter();
+  const { showNotification } = useNotifications();
 
   const [users, setUsers] = useState<UserItem[]>([]);
   const [roles, setRoles] = useState<RoleItem[]>([]);
@@ -41,6 +48,7 @@ export default function AdminUsersScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedRoleId, setSelectedRoleId] = useState<number | undefined>(undefined);
+  const [exportingCsv, setExportingCsv] = useState(false);
 
   // Edit Modal State
   const [editUser, setEditUser] = useState<UserItem | null>(null);
@@ -375,6 +383,58 @@ export default function AdminUsersScreen() {
     }
   };
 
+  const selectedRoleObj = roles.find((r) => r.id === selectedRoleId);
+  const activeRoleName = selectedRoleObj ? selectedRoleObj.name : "All Roles";
+
+  const handleExportCsv = async () => {
+    if (users.length === 0) {
+      Alert.alert("Notice", "No user records to download.");
+      return;
+    }
+
+    try {
+      setExportingCsv(true);
+      const fileName = getCsvFileName(activeRoleName, search);
+      const csvContent = generateUsersCsv(users);
+
+      const result = await exportCsvFile(csvContent, fileName);
+
+      if (result.success) {
+        showNotification({
+          title: "CSV Download Ready",
+          message: `${fileName} (${users.length} records) downloaded successfully.`,
+          type: "system",
+        });
+
+        setStatusModalConfig({
+          visible: true,
+          type: "success",
+          title: "Download Successful",
+          message: `${result.message}\n\nExported ${users.length} records under filter "${activeRoleName}".`,
+          primaryButtonText: "Done",
+        });
+      } else {
+        setStatusModalConfig({
+          visible: true,
+          type: "error",
+          title: "Export Failed",
+          message: result.message || "Could not generate or download CSV file.",
+          primaryButtonText: "Dismiss",
+        });
+      }
+    } catch (err: any) {
+      setStatusModalConfig({
+        visible: true,
+        type: "error",
+        title: "Export Error",
+        message: err?.message || "An unexpected error occurred during export.",
+        primaryButtonText: "Dismiss",
+      });
+    } finally {
+      setExportingCsv(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Header Bar */}
@@ -463,6 +523,40 @@ export default function AdminUsersScreen() {
             );
           })}
         </ScrollView>
+      </View>
+
+      {/* Spacious, Modern Summary & CSV Export Action Bar */}
+      <View style={styles.exportBar}>
+        <View style={styles.recordCountBox}>
+          <Ionicons name="people" size={16} color={colors.navy} />
+          <Text style={styles.recordCountText}>
+            {users.length} {users.length === 1 ? "Record" : "Records"}
+          </Text>
+          <View style={styles.activeFilterPill}>
+            <Text style={styles.activeFilterPillText} numberOfLines={1}>
+              {activeRoleName}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={[
+            styles.downloadCsvButton,
+            (exportingCsv || users.length === 0) && styles.downloadCsvButtonDisabled,
+          ]}
+          onPress={handleExportCsv}
+          disabled={exportingCsv || users.length === 0}
+          activeOpacity={0.8}
+        >
+          {exportingCsv ? (
+            <ActivityIndicator size="small" color="#059669" />
+          ) : (
+            <Ionicons name="download-outline" size={16} color="#059669" />
+          )}
+          <Text style={styles.downloadCsvButtonText}>
+            {exportingCsv ? "Exporting..." : "Download CSV"}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* User Cards List */}
@@ -957,6 +1051,63 @@ const styles = StyleSheet.create({
   },
   roleChipTextActive: {
     color: "#FFFFFF",
+  },
+  exportBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    backgroundColor: "#F8FAFC",
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "#E2E8F0",
+    marginBottom: 4,
+  },
+  recordCountBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+  },
+  recordCountText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  activeFilterPill: {
+    backgroundColor: "#E0F2FE",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    maxWidth: 130,
+  },
+  activeFilterPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#0369A1",
+  },
+  downloadCsvButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 6,
+    minHeight: 38,
+  },
+  downloadCsvButtonDisabled: {
+    opacity: 0.5,
+    backgroundColor: "#F1F5F9",
+    borderColor: "#E2E8F0",
+  },
+  downloadCsvButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#059669",
   },
   listContent: {
     paddingHorizontal: 18,
