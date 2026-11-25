@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as WebBrowser from "expo-web-browser";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -11,6 +12,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import {
+  getDigilockerAadhaarStatusApi,
+  initiateDigilockerAadhaarApi,
+  requestStep1OtpApi,
+  saveBasicDetailsApi,
+  verifyStep1OtpApi,
+} from "../api/kyc";
 import { useAuth } from "../context/AuthContext";
 import { useNotifications } from "../context/NotificationContext";
 import { colors } from "../theme/colors";
@@ -84,11 +92,12 @@ export default function KycVerificationFlow({
   const [showEntityDropdown, setShowEntityDropdown] = useState(false);
   const [address, setAddress] = useState("");
 
-  // Step 2 State: Auto Mobile OTP -> DigiLocker Consent -> DigiLocker Aadhaar Match
+  // Step 2 State: Auto Redis OTP -> DigiLocker Consent -> DigiLocker Aadhaar Match
   const [step2Stage, setStep2Stage] = useState<"otp" | "consent" | "digilocker">("otp");
   const [otpValue, setOtpValue] = useState("");
   const [resendCooldown, setResendCooldown] = useState(0);
   const [digilockerConsent, setDigilockerConsent] = useState(false);
+  const [digilockerSessionId, setDigilockerSessionId] = useState<string | null>(null);
   const [aadhaarNumberInput, setAadhaarNumberInput] = useState("");
   const [aadhaarLinkedMobile, setAadhaarLinkedMobile] = useState("");
 
@@ -191,6 +200,28 @@ export default function KycVerificationFlow({
   const registeredMobileForStep2 =
     record?.step1Data?.mobile || mobile.replace(/[^0-9]/g, "") || user?.mobile || "";
 
+  const triggerRedisOtp = async () => {
+    try {
+      setFormError("");
+      await requestStep1OtpApi();
+      setResendCooldown(60);
+      showNotification({
+        title: "OTP Sent",
+        message: `OTP sent via Redis to +91 ${registeredMobileForStep2}`,
+        type: "system",
+      });
+    } catch (err: any) {
+      const code = err?.response?.data?.code;
+      const msg = err?.response?.data?.message || err?.message || "Failed to send OTP.";
+      if (code === "STEP_ALREADY_COMPLETED") {
+        // Step 1 OTP already verified in backend; move straight to DigiLocker consent
+        setStep2Stage("consent");
+        return;
+      }
+      setFormError(msg);
+    }
+  };
+
   const handleStepPress = (step: KycStep) => {
     // If under review or approved, user can view completed steps
     const isCompleted = completedSteps.includes(step.id);
@@ -206,17 +237,11 @@ export default function KycVerificationFlow({
 
     setFormError("");
     if (step.id === 2) {
-      // Automatically start OTP verification and send OTP when entering Step 2
+      // Automatically request Redis OTP when entering Step 2
       setStep2Stage("otp");
       setOtpValue("");
-      setResendCooldown(30);
-      if (registeredMobileForStep2) {
-        showNotification({
-          title: "OTP Sent",
-          message: `OTP sent to +91 ${registeredMobileForStep2} (Demo OTP: 123456)`,
-          type: "system",
-        });
-      }
+      setDigilockerSessionId(null);
+      triggerRedisOtp();
     }
     setActiveModalStep(step.id);
   };
@@ -248,6 +273,23 @@ export default function KycVerificationFlow({
 
     try {
       setSaving(true);
+
+      // Save Step 1 Basic Details to Backend so Redis OTP challenge can be issued
+      try {
+        await saveBasicDetailsApi({
+          businessType: entityType as
+            | "Sole Proprietorship"
+            | "Private Limited Company"
+            | "Partnership / LLP",
+          shopAddress: addrVal,
+        });
+      } catch (apiErr: any) {
+        const code = apiErr?.response?.data?.code;
+        if (code !== "STEP_ALREADY_COMPLETED") {
+          throw apiErr;
+        }
+      }
+
       const data: Step1Data = {
         fullName: nameVal,
         mobile: mobileVal,
@@ -269,48 +311,79 @@ export default function KycVerificationFlow({
         type: "kyc",
       });
     } catch (err: any) {
-      setFormError(err?.message || "Failed to save details.");
+      setFormError(
+        err?.response?.data?.message || err?.message || "Failed to save details."
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  // Step 2 Handlers: Auto OTP -> Resend OTP -> DigiLocker Consent -> DigiLocker Aadhaar Mobile Match
-  const handleResendOtp = () => {
-    if (resendCooldown > 0) return;
-    setFormError("");
-    setResendCooldown(30);
-    showNotification({
-      title: "OTP Resent",
-      message: `New OTP sent to +91 ${registeredMobileForStep2} (Demo OTP: 123456)`,
-      type: "system",
-    });
+  // Step 2 Handlers: Auto Redis OTP -> Resend OTP -> DigiLocker Consent -> DigiLocker Aadhaar Mobile Match
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0 || saving) return;
+    await triggerRedisOtp();
   };
 
-  const handleVerifyMobileOtp = () => {
+  const handleVerifyMobileOtp = async () => {
     setFormError("");
     const cleanOtp = otpValue.trim();
     if (cleanOtp.length !== 6) {
       setFormError("Please enter the 6-digit OTP sent to your mobile.");
       return;
     }
-    if (cleanOtp !== "123456") {
-      setFormError("Invalid OTP. Please check and try again (Demo OTP: 123456).");
-      return;
+
+    try {
+      setSaving(true);
+      await verifyStep1OtpApi(cleanOtp);
+      // Valid OTP verified in Redis -> proceed to DigiLocker consent
+      setStep2Stage("consent");
+    } catch (err: any) {
+      const code = err?.response?.data?.code;
+      if (code === "STEP_ALREADY_COMPLETED") {
+        setStep2Stage("consent");
+        return;
+      }
+      setFormError(
+        err?.response?.data?.message || "Invalid or expired OTP. Please try again."
+      );
+    } finally {
+      setSaving(false);
     }
-    // Valid OTP -> proceed to DigiLocker consent
-    setStep2Stage("consent");
   };
 
-  const handleOpenDigilocker = () => {
+  const handleOpenDigilocker = async () => {
     setFormError("");
     if (!digilockerConsent) {
       setFormError("Please accept consent to share data with DigiLocker.");
       return;
     }
-    setAadhaarNumberInput("");
-    setAadhaarLinkedMobile("");
-    setStep2Stage("digilocker");
+
+    try {
+      setSaving(true);
+      const initRes = await initiateDigilockerAadhaarApi();
+      if (initRes?.sessionId) {
+        setDigilockerSessionId(initRes.sessionId);
+      }
+      if (initRes?.authorizationUrl) {
+        await WebBrowser.openBrowserAsync(initRes.authorizationUrl);
+      }
+      setAadhaarNumberInput("");
+      setAadhaarLinkedMobile("");
+      setStep2Stage("digilocker");
+    } catch (err: any) {
+      const code = err?.response?.data?.code;
+      // If DigiLocker already verified or mock session active, still allow checking status / matching
+      if (code === "VERIFICATION_ALREADY_COMPLETED") {
+        setStep2Stage("digilocker");
+        return;
+      }
+      setFormError(
+        err?.response?.data?.message || err?.message || "Could not open DigiLocker."
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleVerifyDigilocker = async () => {
@@ -336,6 +409,10 @@ export default function KycVerificationFlow({
 
     try {
       setSaving(true);
+      if (digilockerSessionId) {
+        await getDigilockerAadhaarStatusApi(digilockerSessionId).catch(() => null);
+      }
+
       const maskedAadhaar = "•••• •••• " + cleanAadhaar.slice(-4);
       const data: Step2Data = {
         registeredMobile: registeredMobileForStep2,
@@ -913,7 +990,7 @@ export default function KycVerificationFlow({
                           </Text>
                         </View>
                         <View style={styles.otpSentBadge}>
-                          <Text style={styles.otpSentBadgeText}>Demo: 123456</Text>
+                          <Text style={styles.otpSentBadgeText}>Redis OTP</Text>
                         </View>
                       </View>
 
@@ -934,7 +1011,7 @@ export default function KycVerificationFlow({
                         <Text style={styles.resendHint}>Didn&apos;t receive OTP?</Text>
                         <TouchableOpacity
                           onPress={handleResendOtp}
-                          disabled={resendCooldown > 0}
+                          disabled={resendCooldown > 0 || saving}
                         >
                           <Text
                             style={[
@@ -950,10 +1027,15 @@ export default function KycVerificationFlow({
                       </View>
 
                       <TouchableOpacity
-                        style={styles.submitBtn}
+                        style={[styles.submitBtn, saving && styles.submitBtnDisabled]}
                         onPress={handleVerifyMobileOtp}
+                        disabled={saving}
                       >
-                        <Text style={styles.submitBtnText}>Verify OTP</Text>
+                        {saving ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text style={styles.submitBtnText}>Verify OTP</Text>
+                        )}
                       </TouchableOpacity>
                     </>
                   )}
@@ -983,10 +1065,15 @@ export default function KycVerificationFlow({
                       </TouchableOpacity>
 
                       <TouchableOpacity
-                        style={styles.submitBtn}
+                        style={[styles.submitBtn, saving && styles.submitBtnDisabled]}
                         onPress={handleOpenDigilocker}
+                        disabled={saving}
                       >
-                        <Text style={styles.submitBtnText}>Open DigiLocker</Text>
+                        {saving ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text style={styles.submitBtnText}>Open DigiLocker</Text>
+                        )}
                       </TouchableOpacity>
                     </>
                   )}
