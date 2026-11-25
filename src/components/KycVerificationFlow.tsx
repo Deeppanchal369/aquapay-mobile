@@ -84,10 +84,13 @@ export default function KycVerificationFlow({
   const [showEntityDropdown, setShowEntityDropdown] = useState(false);
   const [address, setAddress] = useState("");
 
-  // Step 2 State (Direct Mobile OTP + DigiLocker Consent)
-  const [digilockerConsent, setDigilockerConsent] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
+  // Step 2 State: Auto Mobile OTP -> DigiLocker Consent -> DigiLocker Aadhaar Match
+  const [step2Stage, setStep2Stage] = useState<"otp" | "consent" | "digilocker">("otp");
   const [otpValue, setOtpValue] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [digilockerConsent, setDigilockerConsent] = useState(false);
+  const [aadhaarNumberInput, setAadhaarNumberInput] = useState("");
+  const [aadhaarLinkedMobile, setAadhaarLinkedMobile] = useState("");
 
   // Step 3 State
   const [panNumber, setPanNumber] = useState("");
@@ -175,9 +178,18 @@ export default function KycVerificationFlow({
     };
   }, [effectiveUserId, user]);
 
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown((prev) => prev - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
   const completedSteps = record?.completedSteps || [];
   const currentStep = record?.currentStep || 1;
   const progressPercent = Math.round((completedSteps.length / KYC_STEPS.length) * 100);
+
+  const registeredMobileForStep2 =
+    record?.step1Data?.mobile || mobile.replace(/[^0-9]/g, "") || user?.mobile || "";
 
   const handleStepPress = (step: KycStep) => {
     // If under review or approved, user can view completed steps
@@ -193,6 +205,19 @@ export default function KycVerificationFlow({
     }
 
     setFormError("");
+    if (step.id === 2) {
+      // Automatically start OTP verification and send OTP when entering Step 2
+      setStep2Stage("otp");
+      setOtpValue("");
+      setResendCooldown(30);
+      if (registeredMobileForStep2) {
+        showNotification({
+          title: "OTP Sent",
+          message: `OTP sent to +91 ${registeredMobileForStep2} (Demo OTP: 123456)`,
+          type: "system",
+        });
+      }
+    }
     setActiveModalStep(step.id);
   };
 
@@ -250,58 +275,75 @@ export default function KycVerificationFlow({
     }
   };
 
-  // Step 2 Handler: Direct Mobile OTP + DigiLocker Verification
-  const registeredMobileForStep2 =
-    record?.step1Data?.mobile || mobile.replace(/[^0-9]/g, "") || user?.mobile || "";
-
-  const handleSendAadhaarOtp = () => {
-    if (!digilockerConsent) {
-      setFormError("Please give DigiLocker consent first.");
-      return;
-    }
-    if (!/^[6-9]\d{9}$/.test(registeredMobileForStep2)) {
-      setFormError("Registered mobile number is missing or invalid. Please update Step 1.");
-      return;
-    }
+  // Step 2 Handlers: Auto OTP -> Resend OTP -> DigiLocker Consent -> DigiLocker Aadhaar Mobile Match
+  const handleResendOtp = () => {
+    if (resendCooldown > 0) return;
     setFormError("");
-    setOtpSent(true);
+    setResendCooldown(30);
     showNotification({
-      title: "OTP Sent",
-      message: `OTP sent to +91 ${registeredMobileForStep2} (Demo OTP: 123456)`,
+      title: "OTP Resent",
+      message: `New OTP sent to +91 ${registeredMobileForStep2} (Demo OTP: 123456)`,
       type: "system",
     });
   };
 
-  const handleSaveStep2 = async () => {
+  const handleVerifyMobileOtp = () => {
     setFormError("");
-    if (!digilockerConsent) {
-      setFormError("DigiLocker consent is required to verify Aadhaar.");
-      return;
-    }
-    if (!otpSent) {
-      setFormError("Please tap 'Send OTP' to verify your registered mobile.");
-      return;
-    }
     const cleanOtp = otpValue.trim();
     if (cleanOtp.length !== 6) {
       setFormError("Please enter the 6-digit OTP sent to your mobile.");
       return;
     }
     if (cleanOtp !== "123456") {
+      setFormError("Invalid OTP. Please check and try again (Demo OTP: 123456).");
+      return;
+    }
+    // Valid OTP -> proceed to DigiLocker consent
+    setStep2Stage("consent");
+  };
+
+  const handleOpenDigilocker = () => {
+    setFormError("");
+    if (!digilockerConsent) {
+      setFormError("Please accept consent to share data with DigiLocker.");
+      return;
+    }
+    setAadhaarNumberInput("");
+    setAadhaarLinkedMobile("");
+    setStep2Stage("digilocker");
+  };
+
+  const handleVerifyDigilocker = async () => {
+    setFormError("");
+    const cleanAadhaar = aadhaarNumberInput.replace(/\s/g, "");
+    const cleanAadhaarMobile = aadhaarLinkedMobile.replace(/[^0-9]/g, "");
+
+    if (!/^\d{12}$/.test(cleanAadhaar)) {
+      setFormError("Please enter a valid 12-digit Aadhaar number.");
+      return;
+    }
+    if (!/^[6-9]\d{9}$/.test(cleanAadhaarMobile)) {
+      setFormError("Please enter a valid 10-digit Aadhaar-registered mobile number.");
+      return;
+    }
+
+    if (cleanAadhaarMobile !== registeredMobileForStep2) {
       setFormError(
-        "Verification failed: OTP invalid or Aadhaar-linked mobile does not match your registered mobile number."
+        `Verification Failed: Aadhaar registered mobile (+91 ${cleanAadhaarMobile}) does not match your entered mobile (+91 ${registeredMobileForStep2}).`
       );
       return;
     }
 
     try {
       setSaving(true);
+      const maskedAadhaar = "•••• •••• " + cleanAadhaar.slice(-4);
       const data: Step2Data = {
         registeredMobile: registeredMobileForStep2,
         digilockerConsent: true,
         aadhaarMobileMatched: true,
         verifiedByDigilocker: true,
         verified: true,
+        aadhaarNumber: maskedAadhaar,
         submittedAt: new Date().toISOString(),
       };
 
@@ -312,7 +354,7 @@ export default function KycVerificationFlow({
 
       setActiveModalStep(null);
       showNotification({
-        title: "Verified by DigiLocker",
+        title: "DigiLocker Verified",
         message: "Aadhaar mobile matched with your registered mobile. Step 3 unlocked.",
         type: "kyc",
       });
@@ -857,79 +899,157 @@ export default function KycVerificationFlow({
                 </View>
               )}
 
-              {/* STEP 2: Direct Mobile OTP + DigiLocker Verification */}
+              {/* STEP 2: Auto Mobile OTP -> DigiLocker Consent -> DigiLocker Aadhaar Match */}
               {activeModalStep === 2 && (
                 <View style={styles.stepForm}>
-                  <View style={styles.mobileInfoCard}>
-                    <Ionicons name="phone-portrait-outline" size={18} color={colors.blue} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.mobileInfoLabel}>Registered Mobile Number</Text>
-                      <Text style={styles.mobileInfoValue}>
-                        +91 {registeredMobileForStep2 || "N/A"}
-                      </Text>
-                    </View>
-                    <View style={styles.digilockerTag}>
-                      <Text style={styles.digilockerTagText}>DigiLocker</Text>
-                    </View>
-                  </View>
+                  {step2Stage === "otp" && (
+                    <>
+                      <View style={styles.mobileInfoCard}>
+                        <Ionicons name="phone-portrait-outline" size={18} color={colors.blue} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.mobileInfoLabel}>OTP Sent Automatically to</Text>
+                          <Text style={styles.mobileInfoValue}>
+                            +91 {registeredMobileForStep2 || "N/A"}
+                          </Text>
+                        </View>
+                        <View style={styles.otpSentBadge}>
+                          <Text style={styles.otpSentBadgeText}>Demo: 123456</Text>
+                        </View>
+                      </View>
 
-                  <TouchableOpacity
-                    style={styles.checkRow}
-                    onPress={() => setDigilockerConsent(!digilockerConsent)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons
-                      name={digilockerConsent ? "checkbox" : "square-outline"}
-                      size={22}
-                      color={digilockerConsent ? colors.blue : "#94A3B8"}
-                    />
-                    <Text style={styles.checkText}>
-                      I give consent to verify my Aadhaar via DigiLocker and match my Aadhaar-linked mobile with my registered mobile number.
-                    </Text>
-                  </TouchableOpacity>
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>Enter 6-Digit Mobile OTP *</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={otpValue}
+                          onChangeText={(t) => setOtpValue(t.replace(/[^0-9]/g, "").slice(0, 6))}
+                          placeholder="Enter 6-digit OTP"
+                          placeholderTextColor="#94A3B8"
+                          keyboardType="numeric"
+                          maxLength={6}
+                        />
+                      </View>
 
-                  <TouchableOpacity
-                    style={[styles.actionOutlineBtn, otpSent && styles.actionOutlineBtnSuccess]}
-                    onPress={handleSendAadhaarOtp}
-                  >
-                    <Ionicons
-                      name={otpSent ? "checkmark-circle" : "send"}
-                      size={15}
-                      color={otpSent ? "#16A34A" : colors.blue}
-                    />
-                    <Text style={[styles.actionOutlineBtnText, otpSent && { color: "#16A34A" }]}>
-                      {otpSent
-                        ? `OTP Sent to +91 ${registeredMobileForStep2} (Demo: 123456)`
-                        : "Send OTP to Registered Mobile"}
-                    </Text>
-                  </TouchableOpacity>
+                      <View style={styles.resendRow}>
+                        <Text style={styles.resendHint}>Didn&apos;t receive OTP?</Text>
+                        <TouchableOpacity
+                          onPress={handleResendOtp}
+                          disabled={resendCooldown > 0}
+                        >
+                          <Text
+                            style={[
+                              styles.resendBtnText,
+                              resendCooldown > 0 && styles.resendBtnDisabled,
+                            ]}
+                          >
+                            {resendCooldown > 0
+                              ? `Resend OTP (${resendCooldown}s)`
+                              : "Resend OTP"}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
 
-                  {otpSent && (
-                    <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>Enter 6-Digit Mobile OTP *</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={otpValue}
-                        onChangeText={(t) => setOtpValue(t.replace(/[^0-9]/g, "").slice(0, 6))}
-                        placeholder="Enter 6-digit OTP"
-                        placeholderTextColor="#94A3B8"
-                        keyboardType="numeric"
-                        maxLength={6}
-                      />
-                    </View>
+                      <TouchableOpacity
+                        style={styles.submitBtn}
+                        onPress={handleVerifyMobileOtp}
+                      >
+                        <Text style={styles.submitBtnText}>Verify OTP</Text>
+                      </TouchableOpacity>
+                    </>
                   )}
 
-                  <TouchableOpacity
-                    style={[styles.submitBtn, saving && styles.submitBtnDisabled]}
-                    onPress={handleSaveStep2}
-                    disabled={saving}
-                  >
-                    {saving ? (
-                      <ActivityIndicator size="small" color="#FFFFFF" />
-                    ) : (
-                      <Text style={styles.submitBtnText}>Verify via DigiLocker</Text>
-                    )}
-                  </TouchableOpacity>
+                  {step2Stage === "consent" && (
+                    <>
+                      <View style={styles.verifiedMobileBadge}>
+                        <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
+                        <Text style={styles.verifiedMobileBadgeText}>
+                          Mobile +91 {registeredMobileForStep2} OTP Verified
+                        </Text>
+                      </View>
+
+                      <TouchableOpacity
+                        style={styles.checkRow}
+                        onPress={() => setDigilockerConsent(!digilockerConsent)}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons
+                          name={digilockerConsent ? "checkbox" : "square-outline"}
+                          size={22}
+                          color={digilockerConsent ? colors.blue : "#94A3B8"}
+                        />
+                        <Text style={styles.checkText}>
+                          I give consent to share my details with DigiLocker to verify my Aadhaar and match my Aadhaar-registered mobile number.
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.submitBtn}
+                        onPress={handleOpenDigilocker}
+                      >
+                        <Text style={styles.submitBtnText}>Open DigiLocker</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+
+                  {step2Stage === "digilocker" && (
+                    <>
+                      <View style={styles.digilockerHeaderCard}>
+                        <Ionicons name="shield-checkmark" size={20} color="#FFFFFF" />
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.digilockerHeaderTitle}>DigiLocker Verification</Text>
+                          <Text style={styles.digilockerHeaderSub}>
+                            Registered Mobile: +91 {registeredMobileForStep2}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>12-Digit Aadhaar Number *</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={aadhaarNumberInput}
+                          onChangeText={(t) =>
+                            setAadhaarNumberInput(t.replace(/[^0-9]/g, "").slice(0, 12))
+                          }
+                          placeholder="Enter 12-digit Aadhaar number"
+                          placeholderTextColor="#94A3B8"
+                          keyboardType="numeric"
+                          maxLength={12}
+                        />
+                      </View>
+
+                      <View style={styles.inputGroup}>
+                        <Text style={styles.inputLabel}>
+                          Aadhaar Registered Mobile Number *
+                        </Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={aadhaarLinkedMobile}
+                          onChangeText={(t) =>
+                            setAadhaarLinkedMobile(t.replace(/[^0-9]/g, "").slice(0, 10))
+                          }
+                          placeholder="Enter mobile linked with Aadhaar"
+                          placeholderTextColor="#94A3B8"
+                          keyboardType="numeric"
+                          maxLength={10}
+                        />
+                      </View>
+
+                      <TouchableOpacity
+                        style={[styles.submitBtn, saving && styles.submitBtnDisabled]}
+                        onPress={handleVerifyDigilocker}
+                        disabled={saving}
+                      >
+                        {saving ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text style={styles.submitBtnText}>
+                            Verify Aadhaar & Match Mobile
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </>
+                  )}
                 </View>
               )}
 
@@ -1765,5 +1885,65 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     color: "#FFFFFF",
+  },
+  otpSentBadge: {
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  otpSentBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#16A34A",
+  },
+  resendRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 2,
+  },
+  resendHint: {
+    fontSize: 12,
+    color: colors.muted,
+  },
+  resendBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.blue,
+  },
+  resendBtnDisabled: {
+    color: "#94A3B8",
+  },
+  verifiedMobileBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#DCFCE7",
+    borderRadius: 10,
+    padding: 12,
+    gap: 8,
+  },
+  verifiedMobileBadgeText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#15803D",
+  },
+  digilockerHeaderCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1E40AF",
+    borderRadius: 10,
+    padding: 12,
+    gap: 10,
+  },
+  digilockerHeaderTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  digilockerHeaderSub: {
+    fontSize: 12,
+    color: "#DBEAFE",
+    marginTop: 1,
   },
 });
