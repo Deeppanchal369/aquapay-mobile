@@ -3,19 +3,25 @@ import { Platform } from "react-native";
 
 export interface Step1Data {
   fullName: string;
-  shopName: string;
+  mobile: string;
+  email: string;
   entityType: string;
-  category: string;
   address: string;
-  city: string;
-  state: string;
-  pincode: string;
+  shopName?: string;
+  category?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
   submittedAt: string;
 }
 
 export interface Step2Data {
-  aadhaarNumber: string; // masked
+  registeredMobile: string;
+  digilockerConsent: boolean;
+  aadhaarMobileMatched: boolean;
+  verifiedByDigilocker: boolean;
   verified: boolean;
+  aadhaarNumber?: string;
   submittedAt: string;
 }
 

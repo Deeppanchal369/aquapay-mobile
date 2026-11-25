@@ -40,8 +40,8 @@ export interface KycStep {
 }
 
 const KYC_STEPS: KycStep[] = [
-  { id: 1, name: "Basic Details", subtitle: "Shop and owner details" },
-  { id: 2, name: "Aadhaar Auth", subtitle: "UIDAI OTP verification" },
+  { id: 1, name: "Basic Details", subtitle: "Personal & business info" },
+  { id: 2, name: "Aadhaar Auth", subtitle: "DigiLocker & Mobile OTP" },
   { id: 3, name: "PAN Verification", subtitle: "Income Tax ID" },
   { id: 4, name: "Bank Account", subtitle: "Settlement account" },
   { id: 5, name: "Photos & Media", subtitle: "Selfie & shop photo" },
@@ -51,18 +51,8 @@ const KYC_STEPS: KycStep[] = [
 
 const ENTITY_TYPES = [
   "Sole Proprietorship",
-  "Individual / Freelance",
-  "Partnership Firm",
-  "Private Limited",
-  "Retail Merchant",
-];
-
-const CATEGORIES = [
-  "Mobile & Telecom",
-  "Electronics",
-  "Kirana & Grocery",
-  "Banking Point / CSP",
-  "General Store",
+  "Private Limited Company",
+  "Partnership / LLP",
 ];
 
 interface Props {
@@ -88,16 +78,14 @@ export default function KycVerificationFlow({
 
   // Step 1 State
   const [fullName, setFullName] = useState("");
-  const [shopName, setShopName] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [email, setEmail] = useState("");
   const [entityType, setEntityType] = useState(ENTITY_TYPES[0]);
-  const [category, setCategory] = useState(CATEGORIES[0]);
+  const [showEntityDropdown, setShowEntityDropdown] = useState(false);
   const [address, setAddress] = useState("");
-  const [city, setCity] = useState("");
-  const [state, setState] = useState("");
-  const [pincode, setPincode] = useState("");
 
-  // Step 2 State
-  const [aadhaarRaw, setAadhaarRaw] = useState("");
+  // Step 2 State (Direct Mobile OTP + DigiLocker Consent)
+  const [digilockerConsent, setDigilockerConsent] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otpValue, setOtpValue] = useState("");
 
@@ -140,24 +128,19 @@ export default function KycVerificationFlow({
         // Populate existing values
         if (rec.step1Data) {
           setFullName(rec.step1Data.fullName || user?.name || "");
-          setShopName(rec.step1Data.shopName || user?.shopname || "");
+          setMobile(rec.step1Data.mobile || user?.mobile || "");
+          setEmail(rec.step1Data.email || user?.email || "");
           setEntityType(rec.step1Data.entityType || ENTITY_TYPES[0]);
-          setCategory(rec.step1Data.category || CATEGORIES[0]);
           setAddress(rec.step1Data.address || user?.address || "");
-          setCity(rec.step1Data.city || user?.city || "");
-          setState(rec.step1Data.state || user?.state || "");
-          setPincode(rec.step1Data.pincode || user?.pincode || "");
         } else {
           setFullName(user?.name || "");
-          setShopName(user?.shopname || "");
+          setMobile(user?.mobile || "");
+          setEmail(user?.email || "");
           setAddress(user?.address || "");
-          setCity(user?.city || "");
-          setState(user?.state || "");
-          setPincode(user?.pincode || "");
         }
 
         if (rec.step2Data) {
-          setAadhaarRaw(rec.step2Data.aadhaarNumber || "");
+          setDigilockerConsent(!!rec.step2Data.digilockerConsent);
         }
 
         if (rec.step3Data) {
@@ -217,34 +200,24 @@ export default function KycVerificationFlow({
   const handleSaveStep1 = async () => {
     setFormError("");
     const nameVal = fullName.trim();
-    const shopVal = shopName.trim();
+    const mobileVal = mobile.replace(/[^0-9]/g, "").trim();
+    const emailVal = email.trim();
     const addrVal = address.trim();
-    const cityVal = city.trim();
-    const stateVal = state.trim();
-    const pinVal = pincode.trim();
 
     if (!nameVal || nameVal.length < 2) {
-      setFormError("Please enter legal owner name.");
+      setFormError("Please enter Full Legal Name.");
       return;
     }
-    if (!shopVal || shopVal.length < 2) {
-      setFormError("Please enter shop or business name.");
+    if (!/^[6-9]\d{9}$/.test(mobileVal)) {
+      setFormError("Please enter a valid 10-digit Registered Mobile Number.");
       return;
     }
-    if (!addrVal || addrVal.length < 4) {
-      setFormError("Please enter business address.");
+    if (!emailVal || !/\S+@\S+\.\S+/.test(emailVal)) {
+      setFormError("Please enter a valid Primary Email Address.");
       return;
     }
-    if (!cityVal) {
-      setFormError("Please enter city.");
-      return;
-    }
-    if (!stateVal) {
-      setFormError("Please enter state.");
-      return;
-    }
-    if (!/^[1-9][0-9]{5}$/.test(pinVal)) {
-      setFormError("Please enter a valid 6-digit PIN code.");
+    if (!addrVal || addrVal.length < 3) {
+      setFormError("Please enter Operating Commercial Address.");
       return;
     }
 
@@ -252,13 +225,10 @@ export default function KycVerificationFlow({
       setSaving(true);
       const data: Step1Data = {
         fullName: nameVal,
-        shopName: shopVal,
+        mobile: mobileVal,
+        email: emailVal,
         entityType,
-        category,
         address: addrVal,
-        city: cityVal,
-        state: stateVal,
-        pincode: pinVal,
         submittedAt: new Date().toISOString(),
       };
 
@@ -270,7 +240,7 @@ export default function KycVerificationFlow({
       setActiveModalStep(null);
       showNotification({
         title: "Step 1 Completed",
-        message: "Basic business details saved.",
+        message: "Personal & business details saved.",
         type: "kyc",
       });
     } catch (err: any) {
@@ -280,43 +250,57 @@ export default function KycVerificationFlow({
     }
   };
 
-  // Step 2 Handler
+  // Step 2 Handler: Direct Mobile OTP + DigiLocker Verification
+  const registeredMobileForStep2 =
+    record?.step1Data?.mobile || mobile.replace(/[^0-9]/g, "") || user?.mobile || "";
+
   const handleSendAadhaarOtp = () => {
-    const raw = aadhaarRaw.replace(/\s/g, "");
-    if (raw.length !== 12 || !/^\d{12}$/.test(raw)) {
-      setFormError("Please enter a valid 12-digit Aadhaar number.");
+    if (!digilockerConsent) {
+      setFormError("Please give DigiLocker consent first.");
+      return;
+    }
+    if (!/^[6-9]\d{9}$/.test(registeredMobileForStep2)) {
+      setFormError("Registered mobile number is missing or invalid. Please update Step 1.");
       return;
     }
     setFormError("");
     setOtpSent(true);
     showNotification({
-      title: "Aadhaar OTP Sent",
-      message: "Demo verification OTP sent: 123456",
+      title: "OTP Sent",
+      message: `OTP sent to +91 ${registeredMobileForStep2} (Demo OTP: 123456)`,
       type: "system",
     });
   };
 
   const handleSaveStep2 = async () => {
     setFormError("");
-    const raw = aadhaarRaw.replace(/\s/g, "");
-    if (raw.length !== 12) {
-      setFormError("Please enter 12-digit Aadhaar number.");
+    if (!digilockerConsent) {
+      setFormError("DigiLocker consent is required to verify Aadhaar.");
       return;
     }
     if (!otpSent) {
-      setFormError("Please tap 'Get OTP' to verify Aadhaar.");
+      setFormError("Please tap 'Send OTP' to verify your registered mobile.");
       return;
     }
-    if (otpValue.trim().length !== 6) {
-      setFormError("Please enter the 6-digit verification OTP (Demo: 123456).");
+    const cleanOtp = otpValue.trim();
+    if (cleanOtp.length !== 6) {
+      setFormError("Please enter the 6-digit OTP sent to your mobile.");
+      return;
+    }
+    if (cleanOtp !== "123456") {
+      setFormError(
+        "Verification failed: OTP invalid or Aadhaar-linked mobile does not match your registered mobile number."
+      );
       return;
     }
 
     try {
       setSaving(true);
-      const masked = "•••• •••• " + raw.slice(-4);
       const data: Step2Data = {
-        aadhaarNumber: masked,
+        registeredMobile: registeredMobileForStep2,
+        digilockerConsent: true,
+        aadhaarMobileMatched: true,
+        verifiedByDigilocker: true,
         verified: true,
         submittedAt: new Date().toISOString(),
       };
@@ -328,12 +312,12 @@ export default function KycVerificationFlow({
 
       setActiveModalStep(null);
       showNotification({
-        title: "Step 2 Completed",
-        message: "Aadhaar verified successfully.",
+        title: "Verified by DigiLocker",
+        message: "Aadhaar mobile matched with your registered mobile. Step 3 unlocked.",
         type: "kyc",
       });
     } catch (err: any) {
-      setFormError(err?.message || "Aadhaar verification failed.");
+      setFormError(err?.message || "DigiLocker verification failed.");
     } finally {
       setSaving(false);
     }
@@ -739,126 +723,124 @@ export default function KycVerificationFlow({
               {activeModalStep === 1 && (
                 <View style={styles.stepForm}>
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Legal Owner Name *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={fullName}
-                      onChangeText={setFullName}
-                      placeholder="Enter legal owner name"
-                      placeholderTextColor="#94A3B8"
-                    />
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Shop / Business Name *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={shopName}
-                      onChangeText={setShopName}
-                      placeholder="Enter shop name"
-                      placeholderTextColor="#94A3B8"
-                    />
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Business Type</Text>
-                    <View style={styles.pillsRow}>
-                      {ENTITY_TYPES.map((t) => (
-                        <TouchableOpacity
-                          key={t}
-                          style={[
-                            styles.selectPill,
-                            entityType === t && styles.selectPillActive,
-                          ]}
-                          onPress={() => setEntityType(t)}
-                        >
-                          <Text
-                            style={[
-                              styles.selectPillText,
-                              entityType === t && styles.selectPillTextActive,
-                            ]}
-                          >
-                            {t}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Category</Text>
-                    <View style={styles.pillsRow}>
-                      {CATEGORIES.map((c) => (
-                        <TouchableOpacity
-                          key={c}
-                          style={[
-                            styles.selectPill,
-                            category === c && styles.selectPillActive,
-                          ]}
-                          onPress={() => setCategory(c)}
-                        >
-                          <Text
-                            style={[
-                              styles.selectPillText,
-                              category === c && styles.selectPillTextActive,
-                            ]}
-                          >
-                            {c}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>Operating Address *</Text>
-                    <TextInput
-                      style={[styles.textInput, styles.addressInput]}
-                      value={address}
-                      onChangeText={setAddress}
-                      placeholder="Shop address, street, area"
-                      placeholderTextColor="#94A3B8"
-                      multiline
-                      numberOfLines={2}
-                    />
-                  </View>
-
-                  <View style={styles.twoColRow}>
-                    <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                      <Text style={styles.inputLabel}>City *</Text>
+                    <Text style={styles.inputLabel}>Full Legal Name</Text>
+                    <View style={styles.inputWithIcon}>
+                      <Ionicons name="person-outline" size={16} color="#64748B" />
                       <TextInput
-                        style={styles.textInput}
-                        value={city}
-                        onChangeText={setCity}
-                        placeholder="City"
-                        placeholderTextColor="#94A3B8"
-                      />
-                    </View>
-                    <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                      <Text style={styles.inputLabel}>State *</Text>
-                      <TextInput
-                        style={styles.textInput}
-                        value={state}
-                        onChangeText={setState}
-                        placeholder="State"
+                        style={styles.inputInner}
+                        value={fullName}
+                        onChangeText={setFullName}
+                        placeholder="Enter full legal name"
                         placeholderTextColor="#94A3B8"
                       />
                     </View>
                   </View>
 
                   <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>PIN Code *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={pincode}
-                      onChangeText={(t) =>
-                        setPincode(t.replace(/[^0-9]/g, "").slice(0, 6))
-                      }
-                      placeholder="6-digit PIN"
-                      placeholderTextColor="#94A3B8"
-                      keyboardType="numeric"
-                      maxLength={6}
-                    />
+                    <Text style={styles.inputLabel}>Registered Mobile Number</Text>
+                    <View style={styles.inputWithIcon}>
+                      <Ionicons name="phone-portrait-outline" size={16} color="#64748B" />
+                      <TextInput
+                        style={styles.inputInner}
+                        value={mobile}
+                        onChangeText={(t) =>
+                          setMobile(t.replace(/[^0-9]/g, "").slice(0, 10))
+                        }
+                        placeholder="10-digit mobile number"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="numeric"
+                        maxLength={10}
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Primary Email Address</Text>
+                    <View style={styles.inputWithIcon}>
+                      <Ionicons name="mail-outline" size={16} color="#64748B" />
+                      <TextInput
+                        style={styles.inputInner}
+                        value={email}
+                        onChangeText={setEmail}
+                        placeholder="Enter email address"
+                        placeholderTextColor="#94A3B8"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                      />
+                    </View>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>
+                      Business Constitution / Type <Text style={{ color: colors.error }}>*</Text>
+                    </Text>
+                    <TouchableOpacity
+                      style={[
+                        styles.dropdownTrigger,
+                        showEntityDropdown && styles.dropdownTriggerActive,
+                      ]}
+                      onPress={() => setShowEntityDropdown(!showEntityDropdown)}
+                      activeOpacity={0.8}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <Ionicons name="briefcase-outline" size={16} color="#64748B" />
+                        <Text style={styles.dropdownTriggerText}>{entityType}</Text>
+                      </View>
+                      <Ionicons
+                        name={showEntityDropdown ? "chevron-up" : "chevron-down"}
+                        size={16}
+                        color="#64748B"
+                      />
+                    </TouchableOpacity>
+
+                    {showEntityDropdown && (
+                      <View style={styles.dropdownMenu}>
+                        {ENTITY_TYPES.map((t) => {
+                          const selected = entityType === t;
+                          return (
+                            <TouchableOpacity
+                              key={t}
+                              style={[
+                                styles.dropdownOption,
+                                selected && styles.dropdownOptionSelected,
+                              ]}
+                              onPress={() => {
+                                setEntityType(t);
+                                setShowEntityDropdown(false);
+                              }}
+                            >
+                              <Text
+                                style={[
+                                  styles.dropdownOptionText,
+                                  selected && styles.dropdownOptionTextSelected,
+                                ]}
+                              >
+                                {t}
+                              </Text>
+                              {selected && (
+                                <Ionicons name="checkmark" size={15} color="#FFFFFF" />
+                              )}
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>
+                      Operating Commercial Address <Text style={{ color: colors.error }}>*</Text>
+                    </Text>
+                    <View style={styles.inputWithIcon}>
+                      <Ionicons name="location-outline" size={16} color="#64748B" />
+                      <TextInput
+                        style={styles.inputInner}
+                        value={address}
+                        onChangeText={setAddress}
+                        placeholder="Enter commercial address"
+                        placeholderTextColor="#94A3B8"
+                      />
+                    </View>
                   </View>
 
                   <TouchableOpacity
@@ -875,21 +857,36 @@ export default function KycVerificationFlow({
                 </View>
               )}
 
-              {/* STEP 2: Aadhaar Auth */}
+              {/* STEP 2: Direct Mobile OTP + DigiLocker Verification */}
               {activeModalStep === 2 && (
                 <View style={styles.stepForm}>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.inputLabel}>12-Digit Aadhaar Number *</Text>
-                    <TextInput
-                      style={styles.textInput}
-                      value={aadhaarRaw}
-                      onChangeText={(t) => setAadhaarRaw(t.replace(/[^0-9]/g, "").slice(0, 12))}
-                      placeholder="Enter 12-digit Aadhaar number"
-                      placeholderTextColor="#94A3B8"
-                      keyboardType="numeric"
-                      maxLength={12}
-                    />
+                  <View style={styles.mobileInfoCard}>
+                    <Ionicons name="phone-portrait-outline" size={18} color={colors.blue} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.mobileInfoLabel}>Registered Mobile Number</Text>
+                      <Text style={styles.mobileInfoValue}>
+                        +91 {registeredMobileForStep2 || "N/A"}
+                      </Text>
+                    </View>
+                    <View style={styles.digilockerTag}>
+                      <Text style={styles.digilockerTagText}>DigiLocker</Text>
+                    </View>
                   </View>
+
+                  <TouchableOpacity
+                    style={styles.checkRow}
+                    onPress={() => setDigilockerConsent(!digilockerConsent)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name={digilockerConsent ? "checkbox" : "square-outline"}
+                      size={22}
+                      color={digilockerConsent ? colors.blue : "#94A3B8"}
+                    />
+                    <Text style={styles.checkText}>
+                      I give consent to verify my Aadhaar via DigiLocker and match my Aadhaar-linked mobile with my registered mobile number.
+                    </Text>
+                  </TouchableOpacity>
 
                   <TouchableOpacity
                     style={[styles.actionOutlineBtn, otpSent && styles.actionOutlineBtnSuccess]}
@@ -901,13 +898,15 @@ export default function KycVerificationFlow({
                       color={otpSent ? "#16A34A" : colors.blue}
                     />
                     <Text style={[styles.actionOutlineBtnText, otpSent && { color: "#16A34A" }]}>
-                      {otpSent ? "OTP Sent (Demo: 123456)" : "Get Aadhaar OTP"}
+                      {otpSent
+                        ? `OTP Sent to +91 ${registeredMobileForStep2} (Demo: 123456)`
+                        : "Send OTP to Registered Mobile"}
                     </Text>
                   </TouchableOpacity>
 
                   {otpSent && (
                     <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>Enter 6-Digit OTP *</Text>
+                      <Text style={styles.inputLabel}>Enter 6-Digit Mobile OTP *</Text>
                       <TextInput
                         style={styles.textInput}
                         value={otpValue}
@@ -928,7 +927,7 @@ export default function KycVerificationFlow({
                     {saving ? (
                       <ActivityIndicator size="small" color="#FFFFFF" />
                     ) : (
-                      <Text style={styles.submitBtnText}>Verify & Continue</Text>
+                      <Text style={styles.submitBtnText}>Verify via DigiLocker</Text>
                     )}
                   </TouchableOpacity>
                 </View>
@@ -1167,16 +1166,16 @@ export default function KycVerificationFlow({
                     <Text style={styles.summaryTitle}>Verification Summary</Text>
 
                     <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>1. Business:</Text>
+                      <Text style={styles.summaryLabel}>1. Basic Details:</Text>
                       <Text style={styles.summaryVal}>
-                        {record?.step1Data?.shopName || shopName || "Pending"}
+                        {record?.step1Data?.fullName || fullName} ({record?.step1Data?.entityType || entityType})
                       </Text>
                     </View>
 
                     <View style={styles.summaryRow}>
-                      <Text style={styles.summaryLabel}>2. Aadhaar:</Text>
+                      <Text style={styles.summaryLabel}>2. DigiLocker:</Text>
                       <Text style={styles.summaryVal}>
-                        {record?.step2Data?.aadhaarNumber || "Verified"}
+                        {record?.step2Data?.verifiedByDigilocker ? "Verified & Mobile Matched" : "Verified"}
                       </Text>
                     </View>
 
@@ -1671,5 +1670,100 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "700",
+  },
+  inputWithIcon: {
+    height: 44,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  inputInner: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.navy,
+  },
+  dropdownTrigger: {
+    height: 44,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1.5,
+    borderColor: "#E2E8F0",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dropdownTriggerActive: {
+    borderColor: colors.blue,
+    backgroundColor: "#FFFFFF",
+  },
+  dropdownTriggerText: {
+    fontSize: 13,
+    color: colors.navy,
+    fontWeight: "500",
+  },
+  dropdownMenu: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    borderRadius: 10,
+    overflow: "hidden",
+    marginTop: 4,
+  },
+  dropdownOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  dropdownOptionSelected: {
+    backgroundColor: "#64748B",
+  },
+  dropdownOptionText: {
+    fontSize: 13,
+    color: colors.navy,
+  },
+  dropdownOptionTextSelected: {
+    color: "#FFFFFF",
+    fontWeight: "600",
+  },
+  mobileInfoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+    borderRadius: 10,
+    padding: 12,
+    gap: 10,
+  },
+  mobileInfoLabel: {
+    fontSize: 11,
+    color: "#0369A1",
+  },
+  mobileInfoValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.navy,
+    marginTop: 1,
+  },
+  digilockerTag: {
+    backgroundColor: colors.blue,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  digilockerTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 });

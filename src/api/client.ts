@@ -1,4 +1,5 @@
 import axios from "axios";
+import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
@@ -9,9 +10,21 @@ export function setOnAuthExpired(handler: AuthExpiredHandler | null) {
   authExpiredHandler = handler;
 }
 
+function getApiBaseUrl(): string {
+  // In local Expo Go / dev client, automatically match the PC's current Metro host IP
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (__DEV__ && hostUri && Platform.OS !== "web") {
+    const hostIp = hostUri.split(":")[0];
+    if (hostIp && hostIp !== "localhost" && hostIp !== "127.0.0.1") {
+      return `http://${hostIp}:8000`;
+    }
+  }
+  return process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.8:8000";
+}
+
 // eslint-disable-next-line import/no-named-as-default-member
 export const api = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.7:8000",
+  baseURL: getApiBaseUrl(),
   timeout: 15000,
   headers: {
     "Content-Type": "application/json",

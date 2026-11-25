@@ -878,27 +878,33 @@ export default function AdminKycAuditScreen() {
                 {selectedAudit?.record.step1Data ? (
                   <View style={styles.auditFieldsCard}>
                     <View style={styles.auditFieldRow}>
-                      <Text style={styles.auditFieldLabel}>Legal Owner:</Text>
+                      <Text style={styles.auditFieldLabel}>Full Legal Name:</Text>
                       <Text style={styles.auditFieldValue}>
                         {selectedAudit.record.step1Data.fullName}
                       </Text>
                     </View>
                     <View style={styles.auditFieldRow}>
-                      <Text style={styles.auditFieldLabel}>Shop Name:</Text>
+                      <Text style={styles.auditFieldLabel}>Registered Mobile:</Text>
                       <Text style={styles.auditFieldValue}>
-                        {selectedAudit.record.step1Data.shopName}
+                        {selectedAudit.record.step1Data.mobile || selectedAudit.user.mobile}
+                      </Text>
+                    </View>
+                    <View style={styles.auditFieldRow}>
+                      <Text style={styles.auditFieldLabel}>Primary Email:</Text>
+                      <Text style={styles.auditFieldValue}>
+                        {selectedAudit.record.step1Data.email || selectedAudit.user.email}
                       </Text>
                     </View>
                     <View style={styles.auditFieldRow}>
                       <Text style={styles.auditFieldLabel}>Business Type:</Text>
                       <Text style={styles.auditFieldValue}>
-                        {selectedAudit.record.step1Data.entityType} • {selectedAudit.record.step1Data.category}
+                        {selectedAudit.record.step1Data.entityType}
                       </Text>
                     </View>
                     <View style={styles.auditFieldRow}>
-                      <Text style={styles.auditFieldLabel}>Address:</Text>
+                      <Text style={styles.auditFieldLabel}>Commercial Address:</Text>
                       <Text style={styles.auditFieldValue}>
-                        {selectedAudit.record.step1Data.address}, {selectedAudit.record.step1Data.city}, {selectedAudit.record.step1Data.state} - {selectedAudit.record.step1Data.pincode}
+                        {selectedAudit.record.step1Data.address}
                       </Text>
                     </View>
                   </View>
@@ -907,10 +913,10 @@ export default function AdminKycAuditScreen() {
                 )}
               </View>
 
-              {/* Step 2: Aadhaar */}
+              {/* Step 2: Aadhaar / DigiLocker */}
               <View style={styles.auditStepBlock}>
                 <View style={styles.auditStepBlockHeader}>
-                  <Text style={styles.auditStepBlockTitle}>2. Aadhaar Auth</Text>
+                  <Text style={styles.auditStepBlockTitle}>2. Aadhaar Auth (DigiLocker)</Text>
                   <Text
                     style={[
                       styles.auditStepBadge,
@@ -924,15 +930,21 @@ export default function AdminKycAuditScreen() {
                 {selectedAudit?.record.step2Data ? (
                   <View style={styles.auditFieldsCard}>
                     <View style={styles.auditFieldRow}>
-                      <Text style={styles.auditFieldLabel}>Aadhaar Number:</Text>
+                      <Text style={styles.auditFieldLabel}>Registered Mobile:</Text>
                       <Text style={styles.auditFieldValue}>
-                        {selectedAudit.record.step2Data.aadhaarNumber}
+                        +91 {selectedAudit.record.step2Data.registeredMobile || selectedAudit.user.mobile}
                       </Text>
                     </View>
                     <View style={styles.auditFieldRow}>
-                      <Text style={styles.auditFieldLabel}>UIDAI OTP Status:</Text>
+                      <Text style={styles.auditFieldLabel}>Aadhaar Mobile Match:</Text>
                       <Text style={[styles.auditFieldValue, { color: "#16A34A" }]}>
-                        Verified Successfully
+                        {selectedAudit.record.step2Data.aadhaarMobileMatched ? "Matched" : "Pending"}
+                      </Text>
+                    </View>
+                    <View style={styles.auditFieldRow}>
+                      <Text style={styles.auditFieldLabel}>DigiLocker Status:</Text>
+                      <Text style={[styles.auditFieldValue, { color: "#16A34A" }]}>
+                        {selectedAudit.record.step2Data.verifiedByDigilocker ? "Verified by DigiLocker" : "Pending"}
                       </Text>
                     </View>
                   </View>
